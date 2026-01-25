@@ -182,7 +182,7 @@
             font-weight: 500;
         }
 
-        .form-input {
+        .form-input, .form-textarea {
             width: 100%;
             padding: 0.875rem;
             background-color: var(--bg-tertiary);
@@ -190,11 +190,17 @@
             border-radius: 0.5rem;
             color: var(--text-primary);
             font-size: 1rem;
+            font-family: inherit;
         }
 
-        .form-input:focus {
+        .form-input:focus, .form-textarea:focus {
             outline: none;
             border-color: var(--brand-orange);
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 120px;
         }
 
         .form-select {
@@ -205,11 +211,57 @@
             border-radius: 0.5rem;
             color: var(--text-primary);
             font-size: 1rem;
+            cursor: pointer;
         }
 
         .form-select:focus {
             outline: none;
             border-color: var(--brand-orange);
+        }
+
+        .poll-options-editor {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .poll-option-input {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .poll-option-input input {
+            flex: 1;
+        }
+
+        .btn-remove {
+            padding: 0.5rem 0.75rem;
+            background-color: var(--error);
+            color: white;
+            border: none;
+            border-radius: 0.25rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+        }
+
+        .btn-remove:hover {
+            opacity: 0.8;
+        }
+
+        .btn-add-option {
+            margin-top: 0.5rem;
+            padding: 0.5rem 1rem;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+        }
+
+        .btn-add-option:hover {
+            background-color: var(--bg-tertiary);
         }
 
         /* Container */
@@ -580,7 +632,14 @@
             { id: 3, email: 'manager@ecomghosts.com', password: 'manager', role: 'manager', name: 'Content Manager' }
         ];
 
-        const MOCK_CONTENT = [
+        const MOCK_CLIENTS = [
+            { id: 1, name: 'John Doe' },
+            { id: 2, name: 'Jane Smith' },
+            { id: 3, name: 'Mike Johnson' },
+            { id: 4, name: 'Sarah Williams' }
+        ];
+
+        let MOCK_CONTENT = [
             {
                 id: 1,
                 type: 'post',
@@ -650,6 +709,7 @@
         let currentView = 'calendar';
         let currentDate = new Date();
         let selectedContent = null;
+        let pollOptions = ['', ''];
 
         // Initialize
         function init() {
@@ -827,7 +887,7 @@
                 <div class="container">
                     <div class="calendar-header">
                         <h1 class="calendar-title">Admin Dashboard</h1>
-                        <button class="btn btn-primary">+ New Content</button>
+                        <button class="btn btn-primary" onclick="showNewContentModal()">+ New Content</button>
                     </div>
 
                     <div class="dashboard-grid">
@@ -948,6 +1008,180 @@
             const modal = document.getElementById('modal');
             modal.innerHTML = modalHTML;
             modal.classList.remove('hidden');
+        }
+
+        function showNewContentModal() {
+            pollOptions = ['', ''];
+
+            const modalHTML = `
+                <div class="modal" onclick="event.stopPropagation()">
+                    <div class="modal-header">
+                        <h2 class="modal-title">Create New Content</h2>
+                        <button class="modal-close" onclick="closeModal(event)">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <form onsubmit="handleCreateContent(event)">
+                            <div class="form-group">
+                                <label class="form-label">Content Type</label>
+                                <select id="contentType" class="form-select" onchange="handleTypeChange()" required>
+                                    <option value="post">Post</option>
+                                    <option value="poll">Poll</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Title</label>
+                                <input type="text" id="contentTitle" class="form-input" placeholder="Content title" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Assign to Client</label>
+                                <select id="clientSelect" class="form-select" required>
+                                    ${MOCK_CLIENTS.map(client => `
+                                        <option value="${client.id}">${client.name}</option>
+                                    `).join('')}
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Date</label>
+                                <input type="date" id="contentDate" class="form-input" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Time</label>
+                                <select id="contentTime" class="form-select" required>
+                                    ${generateTimeOptions()}
+                                </select>
+                            </div>
+
+                            <div class="form-group" id="contentSection">
+                                <label class="form-label">Content</label>
+                                <textarea id="contentText" class="form-textarea" placeholder="Enter your content here..." required></textarea>
+                            </div>
+
+                            <div class="form-group hidden" id="pollOptionsSection">
+                                <label class="form-label">Poll Options</label>
+                                <div id="pollOptionsContainer" class="poll-options-editor">
+                                    <div class="poll-option-input">
+                                        <input type="text" class="form-input poll-option-field" placeholder="Option 1">
+                                    </div>
+                                    <div class="poll-option-input">
+                                        <input type="text" class="form-input poll-option-field" placeholder="Option 2">
+                                    </div>
+                                </div>
+                                <button type="button" class="btn-add-option" onclick="addPollOption()">+ Add Option</button>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
+                                Create Content
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            `;
+
+            const modal = document.getElementById('modal');
+            modal.innerHTML = modalHTML;
+            modal.classList.remove('hidden');
+
+            // Set default date to today
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('contentDate').value = today;
+        }
+
+        function generateTimeOptions() {
+            const options = [];
+            for (let hour = 0; hour < 24; hour++) {
+                for (let min = 0; min < 60; min += 30) {
+                    const h = String(hour).padStart(2, '0');
+                    const m = String(min).padStart(2, '0');
+                    options.push(`<option value="${h}:${m}">${h}:${m}</option>`);
+                }
+            }
+            return options.join('');
+        }
+
+        function handleTypeChange() {
+            const type = document.getElementById('contentType').value;
+            const contentSection = document.getElementById('contentSection');
+            const pollOptionsSection = document.getElementById('pollOptionsSection');
+
+            if (type === 'poll') {
+                contentSection.querySelector('label').textContent = 'Poll Question';
+                contentSection.querySelector('textarea').placeholder = 'Enter your poll question...';
+                pollOptionsSection.classList.remove('hidden');
+            } else {
+                contentSection.querySelector('label').textContent = 'Content';
+                contentSection.querySelector('textarea').placeholder = 'Enter your content here...';
+                pollOptionsSection.classList.add('hidden');
+            }
+        }
+
+        function addPollOption() {
+            const container = document.getElementById('pollOptionsContainer');
+            const optionCount = container.children.length + 1;
+
+            const optionHTML = `
+                <div class="poll-option-input">
+                    <input type="text" class="form-input poll-option-field" placeholder="Option ${optionCount}">
+                    <button type="button" class="btn-remove" onclick="removePollOption(this)">Remove</button>
+                </div>
+            `;
+
+            container.insertAdjacentHTML('beforeend', optionHTML);
+        }
+
+        function removePollOption(btn) {
+            const container = document.getElementById('pollOptionsContainer');
+            if (container.children.length > 2) {
+                btn.parentElement.remove();
+                // Renumber placeholders
+                const inputs = container.querySelectorAll('.poll-option-field');
+                inputs.forEach((input, index) => {
+                    input.placeholder = `Option ${index + 1}`;
+                });
+            }
+        }
+
+        function handleCreateContent(e) {
+            e.preventDefault();
+
+            const type = document.getElementById('contentType').value;
+            const title = document.getElementById('contentTitle').value;
+            const clientId = parseInt(document.getElementById('clientSelect').value);
+            const date = document.getElementById('contentDate').value;
+            const time = document.getElementById('contentTime').value;
+            const content = document.getElementById('contentText').value;
+
+            const newContent = {
+                id: MOCK_CONTENT.length + 1,
+                type: type,
+                title: title,
+                content: content,
+                date: date,
+                time: time,
+                clientId: clientId,
+                status: 'scheduled'
+            };
+
+            if (type === 'poll') {
+                const pollFields = document.querySelectorAll('.poll-option-field');
+                const options = Array.from(pollFields)
+                    .map(field => field.value.trim())
+                    .filter(val => val !== '');
+
+                if (options.length < 2) {
+                    alert('Please provide at least 2 poll options');
+                    return;
+                }
+
+                newContent.pollOptions = options;
+            }
+
+            MOCK_CONTENT.push(newContent);
+            closeModal();
+            renderAdmin();
         }
 
         function closeModal(event) {
