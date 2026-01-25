@@ -551,3 +551,20 @@ body {
 ::-webkit-scrollbar-thumb:hover {
     background: var(--border-color-light);
 }
+
+.content-card {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.content-card h3 {
+  margin-bottom: 0.5rem;
+}
+
+.dashboard-grid .stat-card {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
