@@ -1,58 +1,28 @@
-const { useState, useEffect } = React;
+const { useState } = React;
 
 /* ---------------- HELPERS ---------------- */
-
-// Generate calendar days for a specific month/year
 const generateCalendarDays = (year, month) => {
-  const firstDay = new Date(year, month, 1).getDay(); // 0 = Sunday
+  const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  
   const days = [];
-  // Add empty slots for days before the 1st of the month
-  for (let i = 0; i < firstDay; i++) {
-    days.push(null);
-  }
-  // Add actual days
-  for (let i = 1; i <= daysInMonth; i++) {
-    days.push(i);
-  }
+  for (let i = 0; i < firstDay; i++) days.push(null);
+  for (let i = 1; i <= daysInMonth; i++) days.push(i);
   return days;
 };
 
 /* ---------------- MOCK DATA ---------------- */
-
 const MOCK_USERS = [
-  { id: 1, email: 'client@example.com', password: 'demo', role: 'client', name: 'John Doe' },
-  { id: 2, email: 'admin@ecomghosts.com', password: 'admin', role: 'admin', name: 'Admin User' }
+  { id: 1, email: 'client@example.com', password: 'demo', role: 'client', name: 'John Doe', company: 'TechStart Inc.' },
+  { id: 2, email: 'admin@ecomghosts.com', password: 'admin', role: 'admin', name: 'Admin User', company: 'EcomGhosts' }
 ];
 
-const MOCK_CONTENT = [
-  {
-    id: 1,
-    type: 'post',
-    title: 'E-commerce Growth Tips',
-    content: 'Draft LinkedIn post copy goes here.',
-    date: '2026-01-28',
-    time: '09:00',
-    clientId: 1,
-    status: 'pending_approval',
-    internalNotes: 'Angle focused on CTR hooks'
-  },
-  {
-    id: 2,
-    type: 'poll',
-    title: 'Industry Survey',
-    content: 'What is your biggest growth blocker?',
-    pollOptions: ['Traffic', 'CVR', 'Creative', 'Retention'],
-    date: '2026-01-30',
-    time: '14:00',
-    clientId: 1,
-    status: 'scheduled',
-    internalNotes: ''
-  }
+const INITIAL_CONTENT = [
+  { id: 1, type: 'post', title: 'E-commerce Growth Tips', date: '2026-01-28', time: '09:00', status: 'pending_approval' },
+  { id: 2, type: 'poll', title: 'Industry Survey', date: '2026-01-30', time: '14:00', status: 'scheduled' },
+  { id: 3, type: 'post', title: 'Viral Hook Strategy', date: '2026-02-05', time: '10:00', status: 'draft' }
 ];
 
-/* ---------------- LOGIN ---------------- */
+/* ---------------- COMPONENTS ---------------- */
 
 function Login({ onLogin }) {
   const [email, setEmail] = useState('');
@@ -62,105 +32,91 @@ function Login({ onLogin }) {
     e.preventDefault();
     const user = MOCK_USERS.find(u => u.email === email && u.password === password);
     if (user) onLogin(user);
-    else alert("Invalid credentials");
+    else alert("Try: admin@ecomghosts.com / admin");
   };
 
   return (
     <div className="auth-container">
       <div className="auth-box">
-        <h1>👻 EcomGhosts Portal</h1>
+        <h1 style={{marginBottom:'1rem', textAlign:'center'}}>👻 EcomGhosts</h1>
         <form onSubmit={submit}>
           <input className="form-input" placeholder="Email" onChange={e => setEmail(e.target.value)} />
-          <input className="form-input" type="password" placeholder="Password" onChange={e => setPassword(e.target.value)} style={{ marginTop: '10px' }} />
-          <button className="btn btn-primary" style={{ width: '100%', marginTop: '20px' }}>Login</button>
+          <input className="form-input" type="password" placeholder="Password" onChange={e => setPassword(e.target.value)} />
+          <button className="btn btn-primary" style={{ width: '100%' }}>Login</button>
         </form>
       </div>
     </div>
   );
 }
 
-/* ---------------- NAV ---------------- */
+function Sidebar({ user, view, setView, logout }) {
+  const NavItem = ({ id, icon, label }) => (
+    <button 
+      className={`nav-item ${view === id ? 'active' : ''}`} 
+      onClick={() => setView(id)}
+    >
+      <span>{icon}</span> {label}
+    </button>
+  );
 
-function Navbar({ user, setView, logout }) {
   return (
-    <nav className="navbar">
-      <div className="logo">👻 EcomGhosts Portal</div>
-      <div className="nav-menu">
-        <button className="nav-link" onClick={() => setView('calendar')}>Calendar</button>
-        {user.role === 'admin' && (
-          <>
-            <button className="nav-link" onClick={() => setView('dashboard')}>Dashboard</button>
-            <button className="nav-link" onClick={() => setView('clients')}>Clients</button>
-          </>
-        )}
-        <div className="user-info">
-            <span className="user-role">{user.role.toUpperCase()}</span>
-            <button className="btn btn-logout" onClick={logout}>Logout</button>
-        </div>
+    <aside className="sidebar">
+      <div className="logo">👻 EcomGhosts</div>
+
+      <div className="menu-group">
+        <div className="menu-label">Content</div>
+        <NavItem id="calendar" icon="📅" label="View Calendar" />
+        <NavItem id="upcoming" icon="🚀" label="Upcoming Posts" />
       </div>
-    </nav>
+
+      {user.role === 'admin' && (
+        <div className="menu-group">
+          <div className="menu-label">Client Management</div>
+          <NavItem id="clients" icon="👥" label="Manage Clients" />
+          <NavItem id="add-client" icon="➕" label="Add New Client" />
+        </div>
+      )}
+
+      <div className="user-profile">
+        <div className="avatar">{user.name.charAt(0)}</div>
+        <div className="user-details">
+          <div className="user-name">{user.name}</div>
+          <div className="user-role">{user.company}</div>
+        </div>
+        <button className="btn-logout" onClick={logout} title="Logout">↪</button>
+      </div>
+    </aside>
   );
 }
 
-/* ---------------- CALENDAR COMPONENT ---------------- */
+/* ---------------- VIEWS ---------------- */
 
-function Calendar({ content, user, updateStatus }) {
-  // Hardcoded to Jan 2026 for demo purposes
-  const year = 2026;
-  const month = 0; // January
-  const monthName = "January 2026";
-  
+function ViewCalendar({ content }) {
+  const year = 2026, month = 0; // Jan 2026
   const days = generateCalendarDays(year, month);
-  const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-  // Filter content for this view
-  const getContentForDay = (day) => {
-    if (!day) return [];
-    // Format date string to match mock data (YYYY-MM-DD)
-    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    return content.filter(c => c.date === dateStr);
-  };
-
+  
   return (
-    <div className="container">
-      <div className="calendar-header">
-        <h1 className="calendar-title">{monthName}</h1>
-      </div>
-
+    <div>
+      <h1>Content Calendar</h1>
+      <p style={{color:'var(--text-secondary)', marginBottom:'1.5rem'}}>January 2026</p>
       <div className="calendar-grid">
-        {/* Weekday Headers */}
         <div className="calendar-weekdays">
-          {weekdays.map(d => <div key={d} className="weekday">{d}</div>)}
+          {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => <div key={d} className="weekday">{d}</div>)}
         </div>
-
-        {/* Calendar Days */}
         <div className="calendar-days">
-          {days.map((day, index) => {
-            const dayContent = getContentForDay(day);
+          {days.map((day, i) => {
+            const dateStr = day ? `2026-01-${String(day).padStart(2,'0')}` : '';
+            const dayContent = content.filter(c => c.date === dateStr);
             return (
-              <div key={index} className={`calendar-day ${!day ? 'other-month' : ''}`}>
+              <div key={i} className="calendar-day">
                 {day && (
                   <>
-                    <div className="day-number">{day}</div>
-                    <div className="day-content">
-                      {dayContent.map(item => (
-                        <div key={item.id} 
-                             className={`content-item ${item.type}`}
-                             title={item.title}>
-                          <span className="content-icon">
-                            {item.type === 'post' ? '📝' : '📊'}
-                          </span>
-                          <span>{item.time} - {item.title}</span>
-                          
-                          {/* Quick Client Action: Approve/Reject */}
-                          {user.role === 'client' && item.status === 'pending_approval' && (
-                             <div style={{marginLeft: 'auto', fontSize: '10px'}}>
-                                <button onClick={() => updateStatus(item.id, 'approved')}>✅</button>
-                             </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
+                    <div style={{fontWeight:'bold', marginBottom:'5px'}}>{day}</div>
+                    {dayContent.map(c => (
+                      <div key={c.id} className={`content-item ${c.type}`}>
+                        {c.type==='post'?'📝':'📊'} {c.time}
+                      </div>
+                    ))}
                   </>
                 )}
               </div>
@@ -172,211 +128,147 @@ function Calendar({ content, user, updateStatus }) {
   );
 }
 
-/* ---------------- ADMIN DASHBOARD (Manage Content) ---------------- */
-
-function AdminDashboard({ content, addContent, deleteContent }) {
-  const [newPost, setNewPost] = useState({
-    title: '', type: 'post', date: '', time: '', content: ''
-  });
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    addContent(newPost);
-    // Reset form
-    setNewPost({ title: '', type: 'post', date: '', time: '', content: '' });
-  };
+function ViewUpcoming({ content }) {
+  // Sort by date
+  const sorted = [...content].sort((a, b) => new Date(a.date) - new Date(b.date));
 
   return (
-    <div className="container">
-      <h1>Admin Dashboard</h1>
-      
-      {/* 1. Stats Row */}
-      <div className="dashboard-grid">
-        <div className="stat-card">
-            <div className="stat-label">Total Drafts</div>
-            <div className="stat-value">{content.filter(c => c.status === 'draft').length}</div>
-        </div>
-        <div className="stat-card">
-            <div className="stat-label">Pending Approval</div>
-            <div className="stat-value">{content.filter(c => c.status === 'pending_approval').length}</div>
-        </div>
-        <div className="stat-card">
-            <div className="stat-label">Scheduled</div>
-            <div className="stat-value">{content.filter(c => c.status === 'scheduled').length}</div>
-        </div>
-      </div>
-
-      {/* 2. Create New Content Form */}
-      <div className="content-card">
-        <h3>➕ Schedule New Content</h3>
-        <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '1rem', gridTemplateColumns: '1fr 1fr' }}>
-            <input 
-                className="form-input" 
-                placeholder="Post Title (e.g., 'CTR Hacks')" 
-                value={newPost.title}
-                onChange={e => setNewPost({...newPost, title: e.target.value})}
-                required 
-            />
-            <select 
-                className="form-select" 
-                value={newPost.type}
-                onChange={e => setNewPost({...newPost, type: e.target.value})}
-            >
-                <option value="post">📝 LinkedIn Post</option>
-                <option value="poll">📊 LinkedIn Poll</option>
-            </select>
-            
-            <input 
-                className="form-input" 
-                type="date" 
-                value={newPost.date}
-                onChange={e => setNewPost({...newPost, date: e.target.value})}
-                required 
-            />
-            <input 
-                className="form-input" 
-                type="time" 
-                value={newPost.time}
-                onChange={e => setNewPost({...newPost, time: e.target.value})}
-                required 
-            />
-            
-            <textarea 
-                className="form-input" 
-                placeholder="Write your LinkedIn copy here..." 
-                style={{ gridColumn: '1 / -1', minHeight: '100px' }}
-                value={newPost.content}
-                onChange={e => setNewPost({...newPost, content: e.target.value})}
-            />
-            
-            <button className="btn btn-primary" style={{ gridColumn: '1 / -1' }}>Schedule Content</button>
-        </form>
-      </div>
-
-      {/* 3. Manage Existing Content List */}
-      <div className="content-table">
+    <div>
+      <h1>Upcoming Posts</h1>
+      <div className="card">
         <table className="table">
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Type</th>
-                    <th>Title</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {content.map(item => (
-                    <tr key={item.id}>
-                        <td>{item.date}</td>
-                        <td>{item.type === 'post' ? '📝 Post' : '📊 Poll'}</td>
-                        <td>{item.title}</td>
-                        <td>
-                            <span style={{ 
-                                color: item.status === 'approved' ? 'var(--success)' : 
-                                       item.status === 'pending_approval' ? 'var(--warning)' : 'var(--text-secondary)' 
-                            }}>
-                                {item.status.replace('_', ' ').toUpperCase()}
-                            </span>
-                        </td>
-                        <td>
-                            <button className="btn-secondary action-btn" onClick={() => deleteContent(item.id)}>Delete</button>
-                        </td>
-                    </tr>
-                ))}
-            </tbody>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Type</th>
+              <th>Title</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map(item => (
+              <tr key={item.id}>
+                <td>{item.date} <br/><span style={{fontSize:'0.8em', color:'var(--text-secondary)'}}>{item.time}</span></td>
+                <td>{item.type === 'post' ? '📝 Post' : '📊 Poll'}</td>
+                <td>{item.title}</td>
+                <td>
+                  <span style={{
+                    padding:'4px 8px', borderRadius:'4px', fontSize:'0.8em',
+                    background: item.status==='scheduled'?'rgba(34, 197, 94, 0.2)': 'rgba(245, 158, 11, 0.2)',
+                    color: item.status==='scheduled'?'var(--success)':'var(--warning)'
+                  }}>
+                    {item.status.toUpperCase()}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
         </table>
       </div>
     </div>
   );
 }
 
-/* ---------------- CLIENT MANAGEMENT ---------------- */
-
-function ClientManager({ content }) {
-  const clientMap = {};
-  content.forEach(c => {
-    clientMap[c.clientId] = (clientMap[c.clientId] || 0) + 1;
-  });
-
+function ViewClients() {
   return (
-    <div className="container">
-      <h1>Clients</h1>
-      <table className="table">
-        <thead>
-          <tr>
-            <th>Client Name</th>
-            <th>Scheduled Items</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>John Doe</td>
-            <td>{clientMap[1] || 0} Posts</td>
-            <td><span style={{color: 'var(--success)'}}>Active</span></td>
-          </tr>
-        </tbody>
-      </table>
+    <div>
+      <h1>Manage Clients</h1>
+      <div className="card">
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Client Name</th>
+              <th>Company</th>
+              <th>Package</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {MOCK_USERS.filter(u => u.role === 'client').map(client => (
+              <tr key={client.id}>
+                <td>
+                  <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                    <div className="avatar" style={{width:'30px', height:'30px', fontSize:'0.8rem'}}>{client.name.charAt(0)}</div>
+                    {client.name}
+                  </div>
+                </td>
+                <td>{client.company}</td>
+                <td>Ghostwriting Pro</td>
+                <td style={{color:'var(--success)'}}>Active</td>
+                <td><button className="btn-secondary" style={{padding:'5px 10px', fontSize:'0.8rem'}}>Manage</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
 
-/* ---------------- MAIN APP CONTROLLER ---------------- */
+function ViewAddClient() {
+  const [formData, setFormData] = useState({ name: '', email: '', company: '' });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    alert(`Invite sent to ${formData.email}!`);
+    setFormData({ name: '', email: '', company: '' });
+  };
+
+  return (
+    <div style={{maxWidth:'600px'}}>
+      <h1>Onboard New Client</h1>
+      <p style={{color:'var(--text-secondary)', marginBottom:'2rem'}}>Create a new client profile. They will receive an email to set their password.</p>
+      
+      <div className="card">
+        <form onSubmit={handleSubmit}>
+          <label style={{display:'block', marginBottom:'5px'}}>Full Name</label>
+          <input className="form-input" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+          
+          <label style={{display:'block', marginBottom:'5px'}}>Email Address</label>
+          <input className="form-input" type="email" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+          
+          <label style={{display:'block', marginBottom:'5px'}}>Company Name</label>
+          <input className="form-input" required value={formData.company} onChange={e => setFormData({...formData, company: e.target.value})} />
+          
+          <label style={{display:'block', marginBottom:'5px'}}>Package Type</label>
+          <select className="form-select">
+            <option>Founder (4 posts/mo)</option>
+            <option>Executive (8 posts/mo)</option>
+            <option>Thought Leader (12 posts/mo)</option>
+          </select>
+          
+          <div style={{marginTop:'1.5rem', display:'flex', gap:'1rem'}}>
+            <button className="btn btn-primary">Create Client Profile</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- APP ORCHESTRATOR ---------------- */
 
 function App() {
   const [user, setUser] = useState(null);
-  const [view, setView] = useState('calendar');
-  const [content, setContent] = useState(MOCK_CONTENT);
-
-  // Action: Update Status (Approve/Reject)
-  const updateStatus = (id, status) => {
-    setContent(prev =>
-      prev.map(c => (c.id === id ? { ...c, status } : c))
-    );
-  };
-
-  // Action: Add New Content (Admin)
-  const addContent = (newItem) => {
-    const item = {
-        id: Date.now(),
-        clientId: 1, // Defaulting to Client 1 for demo
-        status: 'pending_approval',
-        ...newItem
-    };
-    setContent([...content, item]);
-    alert("Content Scheduled!");
-  };
-
-  // Action: Delete Content (Admin)
-  const deleteContent = (id) => {
-      if(confirm('Are you sure you want to delete this content?')) {
-          setContent(prev => prev.filter(c => c.id !== id));
-      }
-  };
+  const [view, setView] = useState('calendar'); // Default view
+  const [content, setContent] = useState(INITIAL_CONTENT);
 
   if (!user) return <Login onLogin={setUser} />;
 
   return (
-    <>
-      <Navbar user={user} setView={setView} logout={() => setUser(null)} />
+    <div className="app-layout">
+      {/* LEFT SIDE NAVIGATION */}
+      <Sidebar user={user} view={view} setView={setView} logout={() => setUser(null)} />
       
-      {view === 'calendar' && (
-        <Calendar content={content} user={user} updateStatus={updateStatus} />
-      )}
-      
-      {view === 'dashboard' && user.role === 'admin' && (
-        <AdminDashboard 
-            content={content} 
-            addContent={addContent} 
-            deleteContent={deleteContent} 
-        />
-      )}
-      
-      {view === 'clients' && user.role === 'admin' && (
-        <ClientManager content={content} />
-      )}
-    </>
+      {/* RIGHT SIDE MAIN CONTENT */}
+      <main className="main-content">
+        {view === 'calendar' && <ViewCalendar content={content} />}
+        {view === 'upcoming' && <ViewUpcoming content={content} />}
+        {view === 'clients' && <ViewClients />}
+        {view === 'add-client' && <ViewAddClient />}
+      </main>
+    </div>
   );
 }
 
