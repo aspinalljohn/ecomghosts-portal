@@ -1,4 +1,5 @@
-const { useState, useEffect } = React;
+const { useState } = React;
+const e = React.createElement;
 
 /* ---------------- MOCK DATA ---------------- */
 
@@ -39,43 +40,91 @@ function Login({ onLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const submit = e => {
-    e.preventDefault();
+  const submit = event => {
+    event.preventDefault();
     const user = MOCK_USERS.find(u => u.email === email && u.password === password);
     if (user) onLogin(user);
   };
 
-  return (
-    <div className="auth-container">
-      <div className="auth-box">
-        <h1>👻 EcomGhosts Portal</h1>
-        <form onSubmit={submit}>
-          <input className="form-input" placeholder="Email" onChange={e => setEmail(e.target.value)} />
-          <input className="form-input" type="password" placeholder="Password" onChange={e => setPassword(e.target.value)} />
-          <button className="btn btn-primary" style={{ width: '100%' }}>Login</button>
-        </form>
-      </div>
-    </div>
+  return e(
+    'div',
+    { className: 'auth-container' },
+    e(
+      'div',
+      { className: 'auth-box' },
+      e('h1', null, '👻 EcomGhosts Portal'),
+      e(
+        'form',
+        { onSubmit: submit },
+        e('input', {
+          className: 'form-input',
+          placeholder: 'Email',
+          onChange: event => setEmail(event.target.value)
+        }),
+        e('input', {
+          className: 'form-input',
+          type: 'password',
+          placeholder: 'Password',
+          onChange: event => setPassword(event.target.value)
+        }),
+        e(
+          'button',
+          { className: 'btn btn-primary', style: { width: '100%' } },
+          'Login'
+        )
+      )
+    )
   );
 }
 
 /* ---------------- NAV ---------------- */
 
 function Navbar({ user, setView, logout }) {
-  return (
-    <nav className="navbar">
-      <div className="logo">👻 EcomGhosts Portal</div>
-      <div className="nav-menu">
-        <button className="nav-link" onClick={() => setView('calendar')}>Calendar</button>
-        {user.role === 'admin' && (
-          <>
-            <button className="nav-link" onClick={() => setView('dashboard')}>Dashboard</button>
-            <button className="nav-link" onClick={() => setView('clients')}>Clients</button>
-          </>
-        )}
-        <button className="btn btn-logout" onClick={logout}>Logout</button>
-      </div>
-    </nav>
+  const navButtons = [
+    e(
+      'button',
+      {
+        key: 'calendar',
+        className: 'nav-link',
+        onClick: () => setView('calendar')
+      },
+      'Calendar'
+    )
+  ];
+
+  if (user.role === 'admin') {
+    navButtons.push(
+      e(
+        'button',
+        {
+          key: 'dashboard',
+          className: 'nav-link',
+          onClick: () => setView('dashboard')
+        },
+        'Dashboard'
+      ),
+      e(
+        'button',
+        {
+          key: 'clients',
+          className: 'nav-link',
+          onClick: () => setView('clients')
+        },
+        'Clients'
+      )
+    );
+  }
+
+  return e(
+    'nav',
+    { className: 'navbar' },
+    e('div', { className: 'logo' }, '👻 EcomGhosts Portal'),
+    e(
+      'div',
+      { className: 'nav-menu' },
+      ...navButtons,
+      e('button', { className: 'btn btn-logout', onClick: logout }, 'Logout')
+    )
   );
 }
 
@@ -84,54 +133,58 @@ function Navbar({ user, setView, logout }) {
 function ClientActions({ item, updateStatus }) {
   if (item.status !== 'pending_approval') return null;
 
-  return (
-    <div style={{ marginTop: '1rem' }}>
-      <button className="btn btn-primary" onClick={() => updateStatus(item.id, 'approved')}>
-        Approve
-      </button>
-      <button className="btn btn-secondary" onClick={() => updateStatus(item.id, 'draft')}>
-        Request Changes
-      </button>
-    </div>
+  return e(
+    'div',
+    { style: { marginTop: '1rem' } },
+    e(
+      'button',
+      { className: 'btn btn-primary', onClick: () => updateStatus(item.id, 'approved') },
+      'Approve'
+    ),
+    e(
+      'button',
+      { className: 'btn btn-secondary', onClick: () => updateStatus(item.id, 'draft') },
+      'Request Changes'
+    )
   );
 }
 
 /* ---------------- CALENDAR ---------------- */
 
 function Calendar({ content, user, updateStatus }) {
-  return (
-    <div className="container">
-      <h1>Content Calendar</h1>
-      {content.map(item => (
-        <div key={item.id} className="content-card">
-          <h3>{item.title}</h3>
-          <p>Status: {item.status.replace('_', ' ')}</p>
-          <p>{item.content}</p>
-
-          {user.role === 'client' && (
-            <ClientActions item={item} updateStatus={updateStatus} />
-          )}
-        </div>
-      ))}
-    </div>
+  return e(
+    'div',
+    { className: 'container' },
+    e('h1', null, 'Content Calendar'),
+    ...content.map(item =>
+      e(
+        'div',
+        { key: item.id, className: 'content-card' },
+        e('h3', null, item.title),
+        e('p', null, `Status: ${item.status.replace('_', ' ')}`),
+        e('p', null, item.content),
+        user.role === 'client' ? e(ClientActions, { item, updateStatus }) : null
+      )
+    )
   );
 }
 
 /* ---------------- ADMIN DASHBOARD ---------------- */
 
 function AdminDashboard({ content }) {
-  const statusCount = s => content.filter(c => c.status === s).length;
+  const statusCount = status => content.filter(item => item.status === status).length;
 
-  return (
-    <div className="container">
-      <h1>Admin Dashboard</h1>
-
-      <div className="dashboard-grid">
-        <div className="stat-card">Drafts: {statusCount('draft')}</div>
-        <div className="stat-card">Pending Approval: {statusCount('pending_approval')}</div>
-        <div className="stat-card">Scheduled: {statusCount('scheduled')}</div>
-      </div>
-    </div>
+  return e(
+    'div',
+    { className: 'container' },
+    e('h1', null, 'Admin Dashboard'),
+    e(
+      'div',
+      { className: 'dashboard-grid' },
+      e('div', { className: 'stat-card' }, `Drafts: ${statusCount('draft')}`),
+      e('div', { className: 'stat-card' }, `Pending Approval: ${statusCount('pending_approval')}`),
+      e('div', { className: 'stat-card' }, `Scheduled: ${statusCount('scheduled')}`)
+    )
   );
 }
 
@@ -140,28 +193,38 @@ function AdminDashboard({ content }) {
 function ClientManager({ content }) {
   const clientMap = {};
 
-  content.forEach(c => {
-    clientMap[c.clientId] = (clientMap[c.clientId] || 0) + 1;
+  content.forEach(item => {
+    clientMap[item.clientId] = (clientMap[item.clientId] || 0) + 1;
   });
 
-  return (
-    <div className="container">
-      <h1>Clients</h1>
-      <table className="table">
-        <thead>
-          <tr>
-            <th>Client</th>
-            <th>Scheduled Content</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>John Doe</td>
-            <td>{clientMap[1] || 0}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+  return e(
+    'div',
+    { className: 'container' },
+    e('h1', null, 'Clients'),
+    e(
+      'table',
+      { className: 'table' },
+      e(
+        'thead',
+        null,
+        e(
+          'tr',
+          null,
+          e('th', null, 'Client'),
+          e('th', null, 'Scheduled Content')
+        )
+      ),
+      e(
+        'tbody',
+        null,
+        e(
+          'tr',
+          null,
+          e('td', null, 'John Doe'),
+          e('td', null, clientMap[1] || 0)
+        )
+      )
+    )
   );
 }
 
@@ -173,21 +236,19 @@ function App() {
   const [content, setContent] = useState(MOCK_CONTENT);
 
   const updateStatus = (id, status) => {
-    setContent(prev =>
-      prev.map(c => (c.id === id ? { ...c, status } : c))
-    );
+    setContent(prev => prev.map(item => (item.id === id ? { ...item, status } : item)));
   };
 
-  if (!user) return <Login onLogin={setUser} />;
+  if (!user) return e(Login, { onLogin: setUser });
 
-  return (
-    <>
-      <Navbar user={user} setView={setView} logout={() => setUser(null)} />
-      {view === 'calendar' && <Calendar content={content} user={user} updateStatus={updateStatus} />}
-      {view === 'dashboard' && user.role === 'admin' && <AdminDashboard content={content} />}
-      {view === 'clients' && user.role === 'admin' && <ClientManager content={content} />}
-    </>
+  return e(
+    React.Fragment,
+    null,
+    e(Navbar, { user, setView, logout: () => setUser(null) }),
+    view === 'calendar' ? e(Calendar, { content, user, updateStatus }) : null,
+    view === 'dashboard' && user.role === 'admin' ? e(AdminDashboard, { content }) : null,
+    view === 'clients' && user.role === 'admin' ? e(ClientManager, { content }) : null
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+ReactDOM.createRoot(document.getElementById('root')).render(e(App));
