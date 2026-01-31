@@ -324,7 +324,7 @@ function createSummaryCard(title, total, stats, suffix) {
     const hasStartDate = stats.before !== 0 || stats.after !== 0;
     const changeClass = stats.change >= 0 ? 'positive' : 'negative';
     const arrow = stats.change >= 0 ? '↑' : '↓';
-    const emoji = stats.change >= 0 ? '😡' : '😎';
+    const emoji = stats.change >= 0 ? '👻😎' : '👻😡';
 
     return `
         <div class="summary-card">
