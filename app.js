@@ -157,7 +157,8 @@ function parseExcel(file) {
                     engagement: [],
                     topPosts: [],
                     followers: [],
-                    totalFollowers: 0
+                    totalFollowers: 0,
+                    demographics: []
                 };
 
                 // DISCOVERY
@@ -238,6 +239,17 @@ function parseExcel(file) {
                     result.topPosts.sort((a, b) => b.engagements - a.engagements);
                 }
 
+                // DEMOGRAPHICS
+                if (workbook.SheetNames.includes('DEMOGRAPHICS')) {
+                    const sheet = XLSX.utils.sheet_to_json(workbook.Sheets['DEMOGRAPHICS']);
+                    const jobTitlesData = sheet.filter(row => row['Top Demographics'] === 'Job titles' && row['Value'] && row['Percentage'] !== undefined);
+
+                    result.demographics = jobTitlesData.slice(0, 8).map(row => ({
+                        label: String(row['Value']),
+                        percentage: parseFloat(String(row['Percentage']).replace('%', ''))
+                    })).filter(item => item.label && !isNaN(item.percentage));
+                }
+
                 console.log('Parsed data:', result);
                 resolve(result);
             } catch (err) {
@@ -272,6 +284,7 @@ function renderDashboard() {
 
     renderSummaryCards(data, startDate);
     renderCharts(data, startDate);
+    renderDemographics(data.demographics);
     renderTopPosts(data.topPosts, startDate);
 }
 
@@ -729,6 +742,70 @@ function renderTopPosts(posts, startDate) {
                     <td><span class="eng-rate">${engRate}%</span></td>
                 </tr>
             `}).join('');
+}
+
+function renderDemographics(demographics) {
+    if (charts.demographics) {
+        charts.demographics.destroy();
+    }
+
+    const container = document.getElementById('demographicsChartContainer');
+    const canvas = document.getElementById('demographicsChart');
+    if (!container || !canvas) return;
+
+    // Clear previous state and re-add canvas
+    container.innerHTML = '<canvas id="demographicsChart"></canvas>';
+    const newCanvas = document.getElementById('demographicsChart');
+
+    if (!demographics || demographics.length === 0) {
+        container.innerHTML = '<div style="color:#888;text-align:center;padding:40px;">No audience job title data available</div>';
+        return;
+    }
+
+    const labels = demographics.map(d => d.label);
+    const data = demographics.map(d => d.percentage);
+
+    charts.demographics = new Chart(newCanvas, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Job Title Percentage',
+                data: data,
+                backgroundColor: '#f97316',
+                borderColor: '#f97316',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return (context.raw || 0).toFixed(2) + '%';
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { color: '#333' },
+                    ticks: {
+                        color: '#888',
+                        callback: function(value) { return value + '%'; }
+                    }
+                },
+                y: {
+                    grid: { color: 'transparent' },
+                    ticks: { color: '#e0e0e0' }
+                }
+            }
+        }
+    });
 }
 
 // Init on load
