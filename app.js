@@ -16,6 +16,29 @@ const startDateGroup = document.getElementById('startDateGroup');
 const deleteGroup = document.getElementById('deleteGroup');
 const loader = document.getElementById('loader');
 
+const METRIC_INSIGHTS = {
+    'Impressions': {
+        def: "Total visibility. The size of your potential audience and digital footprint.",
+        good: ["Algorithm trust is high.", "Content format is working.", "Doubling down on recent topics."],
+        bad: ["Review posting time.", "Hook needs more urgency.", "Test a new content format."]
+    },
+    'Engagements': {
+        def: "Total interactions. The definitive measure of how much people care.",
+        good: ["High audience trust.", "Topics are resonating.", "Strong Calls to Action."],
+        bad: ["Ask more questions.", "Replies need more depth.", "Content was too passive."]
+    },
+    'New Followers': {
+        def: "Audience retention. The permanent asset that compounds future reach.",
+        good: ["Profile conversion is high.", "Bio is clear and compelling.", "Reach is targeted correctly."],
+        bad: ["Audit your Profile/Bio.", "Content may be off-niche.", "Add 'Follow' CTAs to comments."]
+    },
+    'Engagement Rate': {
+        def: "Content efficiency. The truest measure of Content-Market Fit.",
+        good: ["Highly relevant audience.", "Quality over Quantity.", "Perfect topic alignment."],
+        bad: ["Stop chasing vanity metrics.", "Focus on depth, not width.", "Cut 'filler' content."]
+    }
+};
+
 // Initialize
 function init() {
     Object.values(clients).forEach(hydrateClientData);
@@ -345,6 +368,27 @@ function createSummaryCard(title, total, stats, suffix) {
     const arrow = stats.change >= 0 ? '↑' : '↓';
     const emoji = stats.change >= 0 ? '👻😎' : '👻😡';
 
+    let insightKey;
+    if (title === 'Total Impressions') insightKey = 'Impressions';
+    else if (title === 'Total Engagements') insightKey = 'Engagements';
+    else if (title === 'Total Followers') insightKey = 'New Followers';
+    else if (title === 'Engagement Rate') insightKey = 'Engagement Rate';
+
+    const insights = METRIC_INSIGHTS[insightKey];
+    const definitionHtml = insights ? `<div class="metric-def">${insights.def}</div>` : '';
+
+    let insightBoxHtml = '';
+    if (hasStartDate && insights) {
+        const advice = stats.change >= 0 ? insights.good : insights.bad;
+        const boxClass = stats.change >= 0 ? 'positive' : 'negative';
+        const adviceHtml = advice.map(item => `<li>${item}</li>`).join('');
+        insightBoxHtml = `
+            <div class="insight-box ${boxClass}">
+                <ul>${adviceHtml}</ul>
+            </div>
+        `;
+    }
+
     return `
         <div class="summary-card">
             <h3>${title}</h3>
@@ -363,6 +407,8 @@ function createSummaryCard(title, total, stats, suffix) {
                     ${arrow} ${Math.abs(stats.change).toFixed(1)}% ${emoji}
                 </div>
             </div>` : '<div style="color:#666;font-size:13px;">Set start date to see comparison</div>'}
+            ${definitionHtml}
+            ${insightBoxHtml}
         </div>
     `;
 }

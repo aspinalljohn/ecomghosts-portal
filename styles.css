@@ -429,3 +429,30 @@ input[type="file"] { display: none; }
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
+
+.metric-def {
+    font-size: 12px;
+    color: #a3a3a3;
+    margin-top: 12px;
+    line-height: 1.4;
+}
+.insight-box {
+    padding: 12px;
+    border-radius: 8px;
+    margin-top: 12px;
+    font-size: 12px;
+}
+.insight-box.positive {
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid #10b981;
+    color: #e2e8f0;
+}
+.insight-box.negative {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid #ef4444;
+    color: #e2e8f0;
+}
+.insight-box ul {
+    padding-left: 16px;
+    margin: 0;
+}
