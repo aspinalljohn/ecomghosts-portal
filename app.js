@@ -203,27 +203,16 @@ function parseExcel(file) {
                 // TOP POSTS - Fixed parsing
                 if (workbook.SheetNames.includes('TOP POSTS')) {
                     const raw = XLSX.utils.sheet_to_json(workbook.Sheets['TOP POSTS'], { header: 1 });
-```javascript
-                // DEMOGRAPHICS PARSING
-                if (workbook.SheetNames.includes('DEMOGRAPHICS')) {
-                    const sheet = XLSX.utils.sheet_to_json(workbook.Sheets['DEMOGRAPHICS']);
-                    // Filter for "Job titles" and take top 8
-                    const jobs = sheet
-                        .filter(row => row['Top Demographics'] === 'Job titles')
-                        .slice(0, 8)
-                        .map(row => ({
-                            title: row['Value'],
-                            percentage: parseFloat(row['Percentage'])
-                        }));
-                    result.demographics = jobs;
-                } else {
-                    result.demographics = [];
-                }
+
                     // Find the header row (contains 'Post URL')
                     let headerIdx = -1;
+                    let typeColIdx = -1;
                     for (let i = 0; i < raw.length; i++) {
-                        if (raw[i] && raw[i][0] === 'Post URL') {
+                        const row = raw[i];
+                        if (row && row[0] === 'Post URL') {
                             headerIdx = i;
+                            // Find 'Type' or 'Post type' column
+                            typeColIdx = row.findIndex(cell => cell === 'Type' || cell === 'Post type');
                             break;
                         }
                     }
@@ -234,11 +223,13 @@ function parseExcel(file) {
                     for (let i = startRow; i < raw.length && result.topPosts.length < 50; i++) {
                         const row = raw[i];
                         if (row && row[0] && String(row[0]).includes('linkedin.com')) {
+                            const postType = typeColIdx !== -1 && row[typeColIdx] ? String(row[typeColIdx]).trim() : 'Text';
                             result.topPosts.push({
                                 url: row[0],
                                 date: excelDateToJS(row[1]),
                                 engagements: parseInt(row[2]) || 0,
-                                impressions: parseInt(row[6]) || 0
+                                impressions: parseInt(row[6]) || 0,
+                                type: postType
                             });
                         }
                     }
@@ -738,46 +729,6 @@ function renderTopPosts(posts, startDate) {
                     <td><span class="eng-rate">${engRate}%</span></td>
                 </tr>
             `}).join('');
-}
-
-function renderDemographics(data) {
-    const canvas = document.getElementById('demographicsChart');
-    if (!canvas) return;
-
-    if (charts.demographics) charts.demographics.destroy();
-
-    if (!data || data.length === 0) {
-        canvas.parentElement.parentElement.style.display = 'none';
-        return;
-    }
-    canvas.parentElement.parentElement.style.display = 'block';
-
-    charts.demographics = new Chart(canvas, {
-        type: 'bar',
-        data: {
-            labels: data.map(d => d.title),
-            datasets: [{
-                label: 'Audience %',
-                data: data.map(d => d.percentage * 100),
-                backgroundColor: '#f97316',
-                borderRadius: 4,
-                barPercentage: 0.6
-            }]
-        },
-        options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false },
-                tooltip: { callbacks: { label: (c) => c.raw.toFixed(1) + '%' } }
-            },
-            scales: {
-                x: { grid: { color: '#333' }, ticks: { color: '#888', callback: v => v + '%' } },
-                y: { grid: { display: false }, ticks: { color: '#e0e0e0' } }
-            }
-        }
-    });
 }
 
 // Init on load
