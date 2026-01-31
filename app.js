@@ -23,29 +23,36 @@ if (sessionUser && users[sessionUser]) {
     currentUser = sessionUser;
 }
 
-// DOM elements - Auth
-const loginScreen = document.getElementById('loginScreen');
-const loginForm = document.getElementById('loginForm');
-const loginUsername = document.getElementById('loginUsername');
-const loginPassword = document.getElementById('loginPassword');
-const loginError = document.getElementById('loginError');
+// DOM elements - Auth (will be initialized on load)
+let loginScreen, loginForm, loginUsername, loginPassword, loginError;
 
-// Login handler
-loginForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const username = loginUsername.value.trim();
-    const password = loginPassword.value;
+// Setup authentication after DOM is ready
+function setupAuth() {
+    loginScreen = document.getElementById('loginScreen');
+    loginForm = document.getElementById('loginForm');
+    loginUsername = document.getElementById('loginUsername');
+    loginPassword = document.getElementById('loginPassword');
+    loginError = document.getElementById('loginError');
 
-    if (users[username] && users[username].password === password) {
-        currentUser = username;
-        sessionStorage.setItem('ecomghosts_session', username);
-        loginScreen.classList.add('hidden');
-        init();
-    } else {
-        loginError.textContent = 'Invalid username or password';
-        loginError.classList.remove('hidden');
+    // Login handler
+    if (loginForm) {
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const username = loginUsername.value.trim();
+            const password = loginPassword.value;
+
+            if (users[username] && users[username].password === password) {
+                currentUser = username;
+                sessionStorage.setItem('ecomghosts_session', username);
+                loginScreen.classList.add('hidden');
+                init();
+            } else {
+                loginError.textContent = 'Invalid username or password';
+                loginError.classList.remove('hidden');
+            }
+        });
     }
-});
+}
 
 // Logout function
 function logout() {
@@ -85,18 +92,8 @@ let clients = JSON.parse(localStorage.getItem('ecomghosts_clients') || '{}');
 let charts = {};
 let currentClient = null;
 
-// DOM elements
-const clientSelect = document.getElementById('clientSelect');
-const startDateInput = document.getElementById('startDate');
-const fileInput = document.getElementById('fileInput');
-const emptyState = document.getElementById('emptyState');
-const dashboard = document.getElementById('dashboard');
-const summaryCards = document.getElementById('summaryCards');
-const chartsGrid = document.getElementById('chartsGrid');
-const postsTableBody = document.getElementById('postsTableBody');
-const startDateGroup = document.getElementById('startDateGroup');
-const deleteGroup = document.getElementById('deleteGroup');
-const loader = document.getElementById('loader');
+// DOM elements (will be initialized in init())
+let clientSelect, startDateInput, fileInput, emptyState, dashboard, summaryCards, chartsGrid, postsTableBody, startDateGroup, deleteGroup, loader;
 
 const METRIC_INSIGHTS = {
     'Impressions': {
@@ -127,9 +124,23 @@ const METRIC_INSIGHTS = {
 
 // Initialize
 function init() {
+    // Initialize DOM elements
+    clientSelect = document.getElementById('clientSelect');
+    startDateInput = document.getElementById('startDate');
+    fileInput = document.getElementById('fileInput');
+    emptyState = document.getElementById('emptyState');
+    dashboard = document.getElementById('dashboard');
+    summaryCards = document.getElementById('summaryCards');
+    chartsGrid = document.getElementById('chartsGrid');
+    postsTableBody = document.getElementById('postsTableBody');
+    startDateGroup = document.getElementById('startDateGroup');
+    deleteGroup = document.getElementById('deleteGroup');
+    loader = document.getElementById('loader');
+
     // If not logged in, show login screen
     if (!currentUser) {
-        loginScreen.classList.remove('hidden');
+        const loginScreen = document.getElementById('loginScreen');
+        if (loginScreen) loginScreen.classList.remove('hidden');
         return;
     }
 
@@ -1450,5 +1461,15 @@ function closeUserForm() {
     if (modal) modal.remove();
 }
 
-// Init on load
-init();
+// Init on load - wait for DOM to be ready
+function startApp() {
+    setupAuth();
+    init();
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startApp);
+} else {
+    // DOM already loaded
+    startApp();
+}
