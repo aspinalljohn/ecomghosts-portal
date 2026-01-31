@@ -156,9 +156,19 @@ function init() {
 
     fileInput.addEventListener('change', handleFileUpload);
 
-    // Show initial state
-    if (!currentClient) {
-        showEmptyState();
+    // Auto-select first client for non-admin users
+    if (!isAdmin()) {
+        const accessibleClients = getAccessibleClients();
+        if (accessibleClients.length > 0) {
+            selectClient(accessibleClients[0]);
+        } else {
+            showEmptyState();
+        }
+    } else {
+        // Show initial state for admin
+        if (!currentClient) {
+            showEmptyState();
+        }
     }
 }
 
@@ -171,6 +181,22 @@ function updateHeader() {
     const existingUserMgmt = document.getElementById('userMgmtBtn');
     if (existingLogout) existingLogout.remove();
     if (existingUserMgmt) existingUserMgmt.remove();
+
+    // Hide/show client select and related controls based on role
+    const clientSelectGroup = document.querySelector('.controls .control-group:has(#clientSelect)');
+    const startDateGroupEl = document.getElementById('startDateGroup');
+    const deleteGroupEl = document.getElementById('deleteGroup');
+    const uploadGroup = document.querySelector('.controls .control-group:has(#fileInput)');
+
+    if (!isAdmin()) {
+        // Hide client select and upload for regular users
+        if (clientSelectGroup) clientSelectGroup.style.display = 'none';
+        if (uploadGroup) uploadGroup.style.display = 'none';
+    } else {
+        // Show for admin
+        if (clientSelectGroup) clientSelectGroup.style.display = 'flex';
+        if (uploadGroup) uploadGroup.style.display = 'flex';
+    }
 
     // Add user management button (admin only)
     if (isAdmin()) {
