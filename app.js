@@ -142,7 +142,12 @@ function init() {
             selectClient(name);
         } else {
             currentClient = null;
-            showEmptyState();
+            // Admin sees mission control, users see empty state
+            if (isAdmin()) {
+                renderAdminMissionControl();
+            } else {
+                showEmptyState();
+            }
         }
     });
 
@@ -165,9 +170,9 @@ function init() {
             showEmptyState();
         }
     } else {
-        // Show initial state for admin
+        // Admin: Show mission control when no client selected
         if (!currentClient) {
-            showEmptyState();
+            renderAdminMissionControl();
         }
     }
 }
@@ -310,7 +315,9 @@ function deleteClient() {
         saveClients();
         updateClientDropdown();
         currentClient = null;
-        showEmptyState();
+
+        // Admin returns to mission control
+        renderAdminMissionControl();
     }
 }
 
@@ -372,6 +379,9 @@ async function handleFileUpload(e) {
 
         updateClientDropdown();
         selectClient(name);
+
+        // If admin uploaded, refresh mission control after closing client view
+        // (They can return to mission control via dropdown)
     } catch (err) {
         alert('Error parsing file: ' + err.message);
         console.error(err);
