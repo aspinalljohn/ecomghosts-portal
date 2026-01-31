@@ -266,7 +266,27 @@ function selectClient(name) {
     currentClient = name;
     clientSelect.value = name;
     startDateInput.value = clients[name].startDate || '';
+
+    // Show start date for both admin and users
     startDateGroup.style.display = 'flex';
+
+    // Make start date read-only for regular users
+    const startDateLabel = document.getElementById('startDateLabel');
+    if (!isAdmin()) {
+        startDateInput.setAttribute('readonly', true);
+        startDateInput.style.cursor = 'not-allowed';
+        startDateInput.style.opacity = '0.7';
+        if (startDateLabel) {
+            startDateLabel.textContent = 'Client Start Date (Read-Only)';
+        }
+    } else {
+        startDateInput.removeAttribute('readonly');
+        startDateInput.style.cursor = 'text';
+        startDateInput.style.opacity = '1';
+        if (startDateLabel) {
+            startDateLabel.textContent = 'Client Start Date';
+        }
+    }
 
     // Only show delete button for admin
     deleteGroup.style.display = isAdmin() ? 'flex' : 'none';
@@ -295,15 +315,17 @@ function deleteClient() {
 }
 
 function showEmptyState() {
-    dashboard.classList.add('hidden');
     startDateGroup.style.display = 'none';
     deleteGroup.style.display = 'none';
 
     // Show different content for admin vs regular user
     if (isAdmin()) {
-        renderAdminMissionControl();
+        // Admin sees mission control instead of empty state
         emptyState.classList.add('hidden');
+        renderAdminMissionControl();
     } else {
+        // Regular user sees empty state
+        dashboard.classList.add('hidden');
         emptyState.classList.remove('hidden');
     }
 }
@@ -1026,6 +1048,9 @@ function renderAdminMissionControl() {
     const allClients = Object.keys(clients).sort();
     const allUsers = Object.entries(users);
 
+    // Hide empty state and show dashboard
+    emptyState.classList.add('hidden');
+
     // Use the dashboard div for mission control
     dashboard.innerHTML = `
         <div style="margin-bottom: 32px;">
@@ -1147,6 +1172,7 @@ function renderAdminMissionControl() {
     `;
 
     dashboard.classList.remove('hidden');
+    emptyState.classList.add('hidden');
 }
 
 // ============================================================================
