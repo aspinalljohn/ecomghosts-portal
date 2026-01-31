@@ -304,30 +304,19 @@ function renderSummaryCards(data, startDate) {
     const impStats = calcBeforeAfter(data.engagement, startDate, 'impressions');
     const engStats = calcBeforeAfter(data.engagement, startDate, 'engagements');
     const folStats = calcBeforeAfter(data.followers, startDate, 'newFollowers');
-
-    const engRate = totalImpressions > 0 ? (totalEngagements / totalImpressions) * 100 : 0;
-    const engRateBefore = impStats.before > 0 ? (engStats.before / impStats.before) * 100 : 0;
-    const engRateAfter = impStats.after > 0 ? (engStats.after / impStats.after) * 100 : 0;
+    
+    const engagementRateData = data.engagement.map(d => ({
+        date: d.date,
+        rate: d.impressions > 0 ? (d.engagements / d.impressions) * 100 : 0
+    }));
+    const engRateStats = calcBeforeAfter(engagementRateData, startDate, 'rate');
+    const totalEngRate = totalImpressions > 0 ? (totalEngagements / totalImpressions) * 100 : 0;
 
     summaryCards.innerHTML = `
         ${createSummaryCard('Total Impressions', totalImpressions, impStats, '/day')}
         ${createSummaryCard('Total Engagements', totalEngagements, engStats, '/day')}
         ${createSummaryCard('Total Followers', totalFollowers, folStats, '/day')}
-        <div class="summary-card">
-            <h3>Engagement Rate</h3>
-            <div class="value">${engRate.toFixed(2)}%</div>
-            ${startDate ? `
-            <div class="comparison">
-                <div class="before">
-                    <span class="label">Before</span>
-                    <span class="num">${engRateBefore.toFixed(2)}%</span>
-                </div>
-                <div class="after">
-                    <span class="label">After</span>
-                    <span class="num">${engRateAfter.toFixed(2)}%</span>
-                </div>
-            </div>` : '<div style="color:#666;font-size:13px;">Set start date to see comparison</div>'}
-        </div>
+        ${createSummaryCard('Engagement Rate', totalEngRate, engRateStats, '%')}
     `;
 }
 
@@ -335,11 +324,12 @@ function createSummaryCard(title, total, stats, suffix) {
     const hasStartDate = stats.before !== 0 || stats.after !== 0;
     const changeClass = stats.change >= 0 ? 'positive' : 'negative';
     const arrow = stats.change >= 0 ? '↑' : '↓';
+    const emoji = stats.change >= 0 ? '😡' : '😎';
 
     return `
         <div class="summary-card">
             <h3>${title}</h3>
-            <div class="value">${formatNum(total)}</div>
+            <div class="value">${formatNum(total)}${suffix === '%' ? '%' : ''}</div>
             ${hasStartDate ? `
             <div class="comparison">
                 <div class="before">
@@ -351,7 +341,7 @@ function createSummaryCard(title, total, stats, suffix) {
                     <span class="num">${formatNum(stats.after)}${suffix}</span>
                 </div>
                 <div class="change ${changeClass}">
-                    ${arrow} ${Math.abs(stats.change).toFixed(1)}%
+                    ${arrow} ${Math.abs(stats.change).toFixed(1)}% ${emoji}
                 </div>
             </div>` : '<div style="color:#666;font-size:13px;">Set start date to see comparison</div>'}
         </div>
