@@ -155,6 +155,11 @@ function init() {
     });
 
     fileInput.addEventListener('change', handleFileUpload);
+
+    // Show initial state
+    if (!currentClient) {
+        showEmptyState();
+    }
 }
 
 function updateHeader() {
@@ -174,7 +179,7 @@ function updateHeader() {
         userMgmtGroup.style.alignSelf = 'flex-end';
         userMgmtGroup.id = 'userMgmtBtn';
         userMgmtGroup.innerHTML = `
-            <button class="btn btn-secondary" onclick="openUserManagement()">
+            <button class="btn btn-purple" onclick="openUserManagement()">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
                 </svg>
@@ -264,10 +269,17 @@ function deleteClient() {
 }
 
 function showEmptyState() {
-    emptyState.classList.remove('hidden');
     dashboard.classList.add('hidden');
     startDateGroup.style.display = 'none';
     deleteGroup.style.display = 'none';
+
+    // Show different content for admin vs regular user
+    if (isAdmin()) {
+        renderAdminMissionControl();
+        emptyState.classList.add('hidden');
+    } else {
+        emptyState.classList.remove('hidden');
+    }
 }
 
 function showDashboard() {
@@ -978,6 +990,137 @@ function renderDemographics(demographics) {
             }
         }
     });
+}
+
+// ============================================================================
+// ADMIN MISSION CONTROL
+// ============================================================================
+
+function renderAdminMissionControl() {
+    const allClients = Object.keys(clients).sort();
+    const allUsers = Object.entries(users);
+
+    // Use the dashboard div for mission control
+    dashboard.innerHTML = `
+        <div style="margin-bottom: 32px;">
+            <h1 style="font-size: 32px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px;">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="#f97316">
+                    <path d="M12 2C7.58 2 4 5.58 4 10v10.5c0 .83.67 1.5 1.5 1.5s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.5-.67 1.5-1.5V10c0-4.42-3.58-8-8-8zm-2 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
+                </svg>
+                Mission Control
+            </h1>
+            <p style="color: #888;">Admin overview of all clients and users</p>
+        </div>
+
+        <div class="summary-cards" style="margin-bottom: 32px;">
+            <div class="summary-card">
+                <h3>Total Clients</h3>
+                <div class="value">${allClients.length}</div>
+                <div style="color:#888;font-size:13px;">Active client accounts</div>
+            </div>
+            <div class="summary-card">
+                <h3>Total Users</h3>
+                <div class="value">${allUsers.length}</div>
+                <div style="color:#888;font-size:13px;">
+                    ${allUsers.filter(([u, data]) => data.role === 'admin').length} admin,
+                    ${allUsers.filter(([u, data]) => data.role === 'user').length} regular
+                </div>
+            </div>
+            <div class="summary-card">
+                <h3>Quick Actions</h3>
+                <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 16px;">
+                    <button class="btn" onclick="document.getElementById('fileInput').click()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/>
+                        </svg>
+                        Upload Client Data
+                    </button>
+                    <button class="btn btn-purple" onclick="openUserManagement()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                        </svg>
+                        Manage Users
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 24px;">
+            <!-- Clients Section -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3 class="chart-title">📊 All Clients</h3>
+                </div>
+                ${allClients.length === 0 ? `
+                    <div style="color:#888;text-align:center;padding:40px;">
+                        No clients yet. Upload LinkedIn data to get started.
+                    </div>
+                ` : `
+                    <div style="max-height: 500px; overflow-y: auto;">
+                        <table class="posts-table">
+                            <thead>
+                                <tr>
+                                    <th>Client Name</th>
+                                    <th>Uploaded</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${allClients.map(clientName => {
+                                    const client = clients[clientName];
+                                    const uploadDate = client.uploadedAt ? new Date(client.uploadedAt).toLocaleDateString() : 'Unknown';
+                                    return `
+                                        <tr>
+                                            <td><strong>${clientName}</strong></td>
+                                            <td style="color:#888;font-size:13px;">${uploadDate}</td>
+                                            <td>
+                                                <button class="btn btn-small" onclick="selectClient('${clientName.replace(/'/g, "\\'")}')">
+                                                    View Dashboard
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `}
+            </div>
+
+            <!-- Users Section -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3 class="chart-title">👥 All Users</h3>
+                </div>
+                <div style="max-height: 500px; overflow-y: auto;">
+                    <table class="posts-table">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Role</th>
+                                <th>Clients</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${allUsers.map(([username, user]) => {
+                                const roleClass = user.role === 'admin' ? 'badge-admin' : 'badge-user';
+                                const clientCount = user.role === 'admin' ? 'All' : (user.clients?.length || 0);
+                                return `
+                                    <tr>
+                                        <td><strong>${username}</strong></td>
+                                        <td><span class="badge ${roleClass}">${user.role}</span></td>
+                                        <td style="color:#888;font-size:13px;">${clientCount}</td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+
+    dashboard.classList.remove('hidden');
 }
 
 // ============================================================================
