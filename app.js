@@ -740,5 +740,45 @@ function renderTopPosts(posts, startDate) {
             `}).join('');
 }
 
+function renderDemographics(data) {
+    const canvas = document.getElementById('demographicsChart');
+    if (!canvas) return;
+
+    if (charts.demographics) charts.demographics.destroy();
+
+    if (!data || data.length === 0) {
+        canvas.parentElement.parentElement.style.display = 'none';
+        return;
+    }
+    canvas.parentElement.parentElement.style.display = 'block';
+
+    charts.demographics = new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: data.map(d => d.title),
+            datasets: [{
+                label: 'Audience %',
+                data: data.map(d => d.percentage * 100),
+                backgroundColor: '#f97316',
+                borderRadius: 4,
+                barPercentage: 0.6
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: (c) => c.raw.toFixed(1) + '%' } }
+            },
+            scales: {
+                x: { grid: { color: '#333' }, ticks: { color: '#888', callback: v => v + '%' } },
+                y: { grid: { display: false }, ticks: { color: '#e0e0e0' } }
+            }
+        }
+    });
+}
+
 // Init on load
 init();
