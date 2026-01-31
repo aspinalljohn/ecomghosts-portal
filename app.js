@@ -1,0 +1,690 @@
+// State
+let clients = JSON.parse(localStorage.getItem('ecomghosts_clients') || '{}');
+let currentClient = null;
+let charts = {};
+
+// DOM elements
+const clientSelect = document.getElementById('clientSelect');
+const startDateInput = document.getElementById('startDate');
+const fileInput = document.getElementById('fileInput');
+const emptyState = document.getElementById('emptyState');
+const dashboard = document.getElementById('dashboard');
+const summaryCards = document.getElementById('summaryCards');
+const chartsGrid = document.getElementById('chartsGrid');
+const postsTableBody = document.getElementById('postsTableBody');
+const startDateGroup = document.getElementById('startDateGroup');
+const deleteGroup = document.getElementById('deleteGroup');
+const loader = document.getElementById('loader');
+
+// Initialize
+function init() {
+    updateClientDropdown();
+
+    clientSelect.addEventListener('change', () => {
+        const name = clientSelect.value;
+        if (name && clients[name]) {
+            selectClient(name);
+        } else {
+            currentClient = null;
+            showEmptyState();
+        }
+    });
+
+    startDateInput.addEventListener('change', () => {
+        if (currentClient) {
+            clients[currentClient].startDate = startDateInput.value;
+            saveClients();
+            renderDashboard();
+        }
+    });
+
+    fileInput.addEventListener('change', handleFileUpload);
+}
+
+function saveClients() {
+    localStorage.setItem('ecomghosts_clients', JSON.stringify(clients));
+}
+
+function updateClientDropdown() {
+    const names = Object.keys(clients).sort();
+    clientSelect.innerHTML = '<option value="">-- Select or upload new --</option>';
+    names.forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        clientSelect.appendChild(opt);
+    });
+}
+
+function selectClient(name) {
+    currentClient = name;
+    clientSelect.value = name;
+    startDateInput.value = clients[name].startDate || '';
+    startDateGroup.style.display = 'flex';
+    deleteGroup.style.display = 'flex';
+    showDashboard();
+    renderDashboard();
+}
+
+function deleteClient() {
+    if (!currentClient) return;
+    if (confirm(`Delete "${currentClient}" and all their data?`)) {
+        delete clients[currentClient];
+        saveClients();
+        updateClientDropdown();
+        currentClient = null;
+        showEmptyState();
+    }
+}
+
+function showEmptyState() {
+    emptyState.classList.remove('hidden');
+    dashboard.classList.add('hidden');
+    startDateGroup.style.display = 'none';
+    deleteGroup.style.display = 'none';
+}
+
+function showDashboard() {
+    emptyState.classList.add('hidden');
+    dashboard.classList.remove('hidden');
+}
+
+// Parse Excel file
+async function handleFileUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    loader.classList.remove('hidden');
+
+    try {
+        const data = await parseExcel(file);
+        const clientName = prompt('Enter client name:');
+        if (!clientName || !clientName.trim()) {
+            alert('Client name is required');
+            return;
+        }
+
+        const name = clientName.trim();
+        clients[name] = {
+            ...data,
+            startDate: clients[name]?.startDate || '',
+            uploadedAt: new Date().toISOString()
+        };
+        saveClients();
+        updateClientDropdown();
+        selectClient(name);
+    } catch (err) {
+        alert('Error parsing file: ' + err.message);
+        console.error(err);
+    } finally {
+        loader.classList.add('hidden');
+    }
+
+    e.target.value = '';
+}
+
+function parseExcel(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+
+                const requiredSheets = ['DISCOVERY', 'ENGAGEMENT'];
+                const missingSheets = requiredSheets.filter(sheetName => !workbook.SheetNames.includes(sheetName));
+
+                if (missingSheets.length > 0) {
+                    reject(new Error(`Missing required sheets: ${missingSheets.join(', ')}`));
+                    return;
+                }
+
+                const result = {
+                    discovery: {},
+                    engagement: [],
+                    topPosts: [],
+                    followers: [],
+                    totalFollowers: 0
+                };
+
+                // DISCOVERY
+                if (workbook.SheetNames.includes('DISCOVERY')) {
+                    const sheet = XLSX.utils.sheet_to_json(workbook.Sheets['DISCOVERY']);
+                    sheet.forEach(row => {
+                        const key = row['Overall Performance'];
+                        const val = row[Object.keys(row)[1]];
+                        if (key && val) result.discovery[key] = val;
+                    });
+                }
+
+                // ENGAGEMENT
+                if (workbook.SheetNames.includes('ENGAGEMENT')) {
+                    const sheet = XLSX.utils.sheet_to_json(workbook.Sheets['ENGAGEMENT']);
+                    result.engagement = sheet.map(row => ({
+                        date: excelDateToJS(row['Date']),
+                        impressions: row['Impressions'] || 0,
+                        engagements: row['Engagements'] || 0
+                    })).filter(r => r.date).sort((a, b) => a.date - b.date);
+                }
+
+                // FOLLOWERS
+                if (workbook.SheetNames.includes('FOLLOWERS')) {
+                    const raw = XLSX.utils.sheet_to_json(workbook.Sheets['FOLLOWERS'], { header: 1 });
+                    if (raw[0] && raw[0][1]) {
+                        result.totalFollowers = raw[0][1];
+                    }
+                    let headerIdx = raw.findIndex(r => r[0] === 'Date');
+                    if (headerIdx >= 0) {
+                        for (let i = headerIdx + 1; i < raw.length; i++) {
+                            if (raw[i][0] && raw[i][1] !== undefined) {
+                                result.followers.push({
+                                    date: excelDateToJS(raw[i][0]),
+                                    newFollowers: raw[i][1] || 0
+                                });
+                            }
+                        }
+                        result.followers = result.followers.filter(r => r.date).sort((a, b) => a.date - b.date);
+                    }
+                }
+
+                // TOP POSTS - Fixed parsing
+                if (workbook.SheetNames.includes('TOP POSTS')) {
+                    const raw = XLSX.utils.sheet_to_json(workbook.Sheets['TOP POSTS'], { header: 1 });
+
+                    // Find the header row (contains 'Post URL')
+                    let headerIdx = -1;
+                    for (let i = 0; i < raw.length; i++) {
+                        if (raw[i] && raw[i][0] === 'Post URL') {
+                            headerIdx = i;
+                            break;
+                        }
+                    }
+
+                    // Start parsing from row after header
+                    const startRow = headerIdx >= 0 ? headerIdx + 1 : 2;
+
+                    for (let i = startRow; i < raw.length && result.topPosts.length < 50; i++) {
+                        const row = raw[i];
+                        if (row && row[0] && String(row[0]).includes('linkedin.com')) {
+                            result.topPosts.push({
+                                url: row[0],
+                                date: excelDateToJS(row[1]),
+                                engagements: parseInt(row[2]) || 0,
+                                impressions: parseInt(row[6]) || 0
+                            });
+                        }
+                    }
+
+                    // Sort by engagements descending
+                    result.topPosts.sort((a, b) => b.engagements - a.engagements);
+                }
+
+                console.log('Parsed data:', result);
+                resolve(result);
+            } catch (err) {
+                reject(err);
+            }
+        };
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(file);
+    });
+}
+
+function excelDateToJS(val) {
+    if (!val) return null;
+    if (val instanceof Date) return val;
+    if (typeof val === 'number') {
+        // Excel date serial number
+        return new Date((val - 25569) * 86400 * 1000);
+    }
+    if (typeof val === 'string') {
+        const d = new Date(val);
+        return isNaN(d) ? null : d;
+    }
+    return null;
+}
+
+// Render dashboard
+function renderDashboard() {
+    if (!currentClient || !clients[currentClient]) return;
+
+    const data = clients[currentClient];
+    const startDate = data.startDate ? new Date(data.startDate) : null;
+
+    renderSummaryCards(data, startDate);
+    renderCharts(data, startDate);
+    renderTopPosts(data.topPosts, startDate);
+}
+
+function formatNum(num) {
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+    return Math.round(num).toLocaleString();
+}
+
+function calcBeforeAfter(data, startDate, key) {
+    if (!data || data.length === 0 || !startDate) {
+        return { before: 0, after: 0, change: 0 };
+    }
+
+    const before = data.filter(d => d.date < startDate);
+    const after = data.filter(d => d.date >= startDate);
+
+    const avgBefore = before.length > 0
+        ? before.reduce((s, d) => s + (d[key] || 0), 0) / before.length
+        : 0;
+    const avgAfter = after.length > 0
+        ? after.reduce((s, d) => s + (d[key] || 0), 0) / after.length
+        : 0;
+
+    const change = avgBefore > 0 ? ((avgAfter - avgBefore) / avgBefore) * 100 : 0;
+
+    return { before: avgBefore, after: avgAfter, change };
+}
+
+function renderSummaryCards(data, startDate) {
+    const totalImpressions = data.discovery['Impressions'] ||
+        data.engagement.reduce((s, d) => s + d.impressions, 0);
+    const totalEngagements = data.engagement.reduce((s, d) => s + d.engagements, 0);
+    const totalFollowers = data.totalFollowers || 0;
+
+    const impStats = calcBeforeAfter(data.engagement, startDate, 'impressions');
+    const engStats = calcBeforeAfter(data.engagement, startDate, 'engagements');
+    const folStats = calcBeforeAfter(data.followers, startDate, 'newFollowers');
+
+    const engRate = totalImpressions > 0 ? (totalEngagements / totalImpressions) * 100 : 0;
+    const engRateBefore = impStats.before > 0 ? (engStats.before / impStats.before) * 100 : 0;
+    const engRateAfter = impStats.after > 0 ? (engStats.after / impStats.after) * 100 : 0;
+
+    summaryCards.innerHTML = `
+        ${createSummaryCard('Total Impressions', totalImpressions, impStats, '/day')}
+        ${createSummaryCard('Total Engagements', totalEngagements, engStats, '/day')}
+        ${createSummaryCard('Total Followers', totalFollowers, folStats, '/day')}
+        <div class="summary-card">
+            <h3>Engagement Rate</h3>
+            <div class="value">${engRate.toFixed(2)}%</div>
+            ${startDate ? `
+            <div class="comparison">
+                <div class="before">
+                    <span class="label">Before</span>
+                    <span class="num">${engRateBefore.toFixed(2)}%</span>
+                </div>
+                <div class="after">
+                    <span class="label">After</span>
+                    <span class="num">${engRateAfter.toFixed(2)}%</span>
+                </div>
+            </div>` : '<div style="color:#666;font-size:13px;">Set start date to see comparison</div>'}
+        </div>
+    `;
+}
+
+function createSummaryCard(title, total, stats, suffix) {
+    const hasStartDate = stats.before !== 0 || stats.after !== 0;
+    const changeClass = stats.change >= 0 ? 'positive' : 'negative';
+    const arrow = stats.change >= 0 ? '↑' : '↓';
+
+    return `
+        <div class="summary-card">
+            <h3>${title}</h3>
+            <div class="value">${formatNum(total)}</div>
+            ${hasStartDate ? `
+            <div class="comparison">
+                <div class="before">
+                    <span class="label">Before</span>
+                    <span class="num">${formatNum(stats.before)}${suffix}</span>
+                </div>
+                <div class="after">
+                    <span class="label">After</span>
+                    <span class="num">${formatNum(stats.after)}${suffix}</span>
+                </div>
+                <div class="change ${changeClass}">
+                    ${arrow} ${Math.abs(stats.change).toFixed(1)}%
+                </div>
+            </div>` : '<div style="color:#666;font-size:13px;">Set start date to see comparison</div>'}
+        </div>
+    `;
+}
+
+function renderCharts(data, startDate) {
+    // Destroy existing charts
+    Object.values(charts).forEach(c => c.destroy());
+    charts = {};
+
+    chartsGrid.innerHTML = `
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3 class="chart-title">
+                    <svg class="ghost-icon-sm" viewBox="0 0 24 24" fill="#f97316">
+                        <path d="M12 2C7.58 2 4 5.58 4 10v10.5c0 .83.67 1.5 1.5 1.5s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.5-.67 1.5-1.5V10c0-4.42-3.58-8-8-8zm-2 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
+                    </svg>
+                    Impressions
+                </h3>
+                <div class="time-toggle" data-chart="impressions">
+                    <button data-period="daily">Daily</button>
+                    <button data-period="weekly" class="active">Weekly</button>
+                    <button data-period="monthly">Monthly</button>
+                </div>
+            </div>
+            <div class="chart-container"><canvas id="impressionsChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3 class="chart-title">
+                    <svg class="ghost-icon-sm" viewBox="0 0 24 24" fill="#fb923c">
+                        <path d="M12 2C7.58 2 4 5.58 4 10v10.5c0 .83.67 1.5 1.5 1.5s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.5-.67 1.5-1.5V10c0-4.42-3.58-8-8-8zm-2 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
+                    </svg>
+                    Engagements
+                </h3>
+                <div class="time-toggle" data-chart="engagements">
+                    <button data-period="daily">Daily</button>
+                    <button data-period="weekly" class="active">Weekly</button>
+                    <button data-period="monthly">Monthly</button>
+                </div>
+            </div>
+            <div class="chart-container"><canvas id="engagementsChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3 class="chart-title">
+                    <svg class="ghost-icon-sm" viewBox="0 0 24 24" fill="#ea580c">
+                        <path d="M12 2C7.58 2 4 5.58 4 10v10.5c0 .83.67 1.5 1.5 1.5s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.5-.67 1.5-1.5V10c0-4.42-3.58-8-8-8zm-2 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
+                    </svg>
+                    New Followers
+                </h3>
+                <div class="time-toggle" data-chart="followers">
+                    <button data-period="daily">Daily</button>
+                    <button data-period="weekly" class="active">Weekly</button>
+                    <button data-period="monthly">Monthly</button>
+                </div>
+            </div>
+            <div class="chart-container"><canvas id="followersChart"></canvas></div>
+        </div>
+    `;
+
+    // Setup toggle buttons
+    document.querySelectorAll('.time-toggle').forEach(toggle => {
+        toggle.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('click', () => {
+                toggle.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const chartName = toggle.dataset.chart;
+                const period = btn.dataset.period;
+                updateChart(chartName, period);
+            });
+        });
+    });
+
+    // Create charts with orange colors (all orange theme)
+    createChart('impressions', data.engagement, 'impressions', '#f97316', startDate, 'weekly');
+    createChart('engagements', data.engagement, 'engagements', '#fb923c', startDate, 'weekly');
+    createChart('followers', data.followers, 'newFollowers', '#ea580c', startDate, 'weekly');
+}
+
+function aggregateData(data, period) {
+    if (!data || data.length === 0) return { labels: [], values: [] };
+
+    const getKey = (date) => {
+        const d = new Date(date);
+        if (period === 'daily') return d.toISOString().split('T')[0];
+        if (period === 'weekly') {
+            const startOfWeek = new Date(d);
+            startOfWeek.setDate(d.getDate() - d.getDay());
+            return startOfWeek.toISOString().split('T')[0];
+        }
+        if (period === 'monthly') {
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        }
+    };
+
+    const grouped = {};
+    data.forEach(item => {
+        const key = getKey(item.date);
+        if (!grouped[key]) grouped[key] = { sum: 0, count: 0 };
+        Object.keys(item).forEach(k => {
+            if (typeof item[k] === 'number') {
+                grouped[key][k] = (grouped[key][k] || 0) + item[k];
+            }
+        });
+    });
+
+    const sorted = Object.entries(grouped).sort((a, b) => a[0].localeCompare(b[0]));
+    return {
+        labels: sorted.map(([k]) => k),
+        data: sorted.map(([, v]) => v)
+    };
+}
+
+function formatDateLabel(dateStr, period) {
+    if (period === 'monthly') {
+        const [y, m] = dateStr.split('-');
+        return new Date(y, m - 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+    }
+    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function createChart(name, rawData, valueKey, color, startDate, period) {
+    const canvas = document.getElementById(name + 'Chart');
+    if (!canvas) return;
+
+    const agg = aggregateData(rawData, period);
+    const labels = agg.labels.map(l => formatDateLabel(l, period));
+    const values = agg.data.map(d => d[valueKey] || 0);
+
+    // Find start date index for annotation
+    let startIndex = -1;
+    if (startDate) {
+        const startStr = startDate.toISOString().split('T')[0];
+        startIndex = agg.labels.findIndex(l => l >= startStr);
+    }
+
+    const annotations = {};
+    if (startIndex >= 0) {
+        annotations.startLine = {
+            type: 'line',
+            xMin: startIndex,
+            xMax: startIndex,
+            borderColor: '#f97316',
+            borderWidth: 2,
+            borderDash: [6, 4],
+            label: {
+                display: true,
+                content: '👻 Started with EcomGhosts',
+                position: 'start',
+                backgroundColor: 'rgba(249, 115, 22, 0.9)',
+                color: '#fff',
+                font: { size: 11, weight: 'bold' }
+            }
+        };
+    }
+
+    charts[name] = new Chart(canvas, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: name,
+                data: values,
+                borderColor: color,
+                backgroundColor: color + '33',
+                fill: true,
+                tension: 0.45,
+                pointRadius: period === 'daily' ? 0 : 2,
+                pointHoverRadius: 6,
+                borderWidth: 2.5
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                annotation: { annotations }
+            },
+            scales: {
+                x: {
+                    grid: { color: '#333' },
+                    ticks: { color: '#888', maxRotation: 45 }
+                },
+                y: {
+                    grid: { color: '#333' },
+                    ticks: {
+                        color: '#888',
+                        callback: (v) => formatNum(v)
+                    }
+                }
+            },
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            }
+        }
+    });
+
+    // Store metadata for updates
+    charts[name]._rawData = rawData;
+    charts[name]._valueKey = valueKey;
+    charts[name]._color = color;
+    charts[name]._startDate = startDate;
+}
+
+function updateChart(name, period) {
+    const chart = charts[name];
+    if (!chart) return;
+
+    const rawData = chart._rawData;
+    const valueKey = chart._valueKey;
+    const startDate = chart._startDate;
+
+    const agg = aggregateData(rawData, period);
+    const labels = agg.labels.map(l => formatDateLabel(l, period));
+    const values = agg.data.map(d => d[valueKey] || 0);
+
+    let startIndex = -1;
+    if (startDate) {
+        const startStr = startDate.toISOString().split('T')[0];
+        startIndex = agg.labels.findIndex(l => l >= startStr);
+    }
+
+    chart.data.labels = labels;
+    chart.data.datasets[0].data = values;
+    chart.data.datasets[0].pointRadius = period === 'daily' ? 0 : 2;
+
+    if (startIndex >= 0) {
+        chart.options.plugins.annotation.annotations = {
+            startLine: {
+                type: 'line',
+                xMin: startIndex,
+                xMax: startIndex,
+                borderColor: '#f97316',
+                borderWidth: 2,
+                borderDash: [6, 4],
+                label: {
+                    display: true,
+                    content: '👻 Started with EcomGhosts',
+                    position: 'start',
+                    backgroundColor: 'rgba(249, 115, 22, 0.9)',
+                    color: '#fff',
+                    font: { size: 11, weight: 'bold' }
+                }
+            }
+        };
+    } else {
+        chart.options.plugins.annotation.annotations = {};
+    }
+
+    chart.update();
+}
+
+function renderTopPosts(posts, startDate) {
+    console.log('Rendering top posts:', posts);
+
+    const topPostsSection = document.getElementById('topPostsSection');
+
+    // Remove any existing attribution note
+    const existingNote = topPostsSection.querySelector('.attribution-note');
+    if (existingNote) existingNote.remove();
+
+    if (!posts || posts.length === 0) {
+        postsTableBody.innerHTML = '<tr><td colspan="7" style="color:#888;text-align:center;padding:40px;">No post data available</td></tr>';
+        return;
+    }
+
+    const today = new Date();
+    const topTen = posts.slice(0, 10);
+
+    // Count posts attributed to EcomGhosts (on or after start date)
+    const attributedPosts = startDate ? topTen.filter(p => p.date && p.date >= startDate).length : 0;
+
+    // Add attribution note if start date is set and there are attributed posts
+    if (startDate && attributedPosts > 0) {
+        const noteHTML = `
+            <div class="attribution-note">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="#f97316">
+                    <path d="M12 2C7.58 2 4 5.58 4 10v10.5c0 .83.67 1.5 1.5 1.5s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.5-.67 1.5-1.5V10c0-4.42-3.58-8-8-8zm-2 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
+                </svg>
+                <span class="attribution-count">${attributedPosts}</span> of ${topTen.length} top posts created <strong>after</strong> starting with EcomGhosts (${startDate.toLocaleDateString()})
+            </div>
+        `;
+        const tableEl = topPostsSection.querySelector('.posts-table');
+        tableEl.insertAdjacentHTML('beforebegin', noteHTML);
+    }
+
+    postsTableBody.innerHTML = topTen.map((post, i) => {
+        // Extract activity ID from URL for display
+        const activityMatch = post.url.match(/activity:(\d+)/);
+        const activityId = activityMatch ? activityMatch[1] : 'N/A';
+        const shortId = activityId.slice(-8); // Last 8 digits
+
+        // Calculate days ago
+        const daysAgo = post.date ? Math.floor((today - post.date) / (1000 * 60 * 60 * 24)) : null;
+        const daysAgoText = daysAgo !== null ? (daysAgo === 0 ? 'Today' : daysAgo === 1 ? '1 day ago' : `${daysAgo} days ago`) : '-';
+
+        // Calculate engagement rate
+        const engRate = post.impressions > 0 ? ((post.engagements / post.impressions) * 100).toFixed(2) : '0.00';
+
+        // Format full numbers
+        const fullImpressions = post.impressions.toLocaleString();
+        const fullEngagements = post.engagements.toLocaleString();
+
+        // Check if post is attributed to EcomGhosts
+        const isAttributed = startDate && post.date && post.date >= startDate;
+        const rowClass = isAttributed ? 'row-highlighted' : '';
+        const badge = isAttributed ? `
+            <span class="ghost-badge">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2C7.58 2 4 5.58 4 10v10.5c0 .83.67 1.5 1.5 1.5s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.5-.67 1.5-1.5V10c0-4.42-3.58-8-8-8zm-2 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
+                </svg>
+                EcomGhosts
+            </span>
+        ` : '';
+
+        return `
+                <tr class="${rowClass}">
+                    <td>
+                        <a href="${post.url}" target="_blank" rel="noopener">
+                            👻 View Post →
+                        </a>
+                        <span class="post-id">ID: ...${shortId}</span>
+                    </td>
+                    <td>
+                        <a href="${post.url}" target="_blank" rel="noopener" class="preview-btn">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
+                            </svg>
+                            Open
+                        </a>
+                    </td>
+                    <td>
+                        ${post.date ? post.date.toLocaleDateString() : '-'}
+                        ${badge}
+                    </td>
+                    <td><span class="days-ago">${daysAgoText}</span></td>
+                    <td><strong>${fullEngagements}</strong></td>
+                    <td>${fullImpressions}</td>
+                    <td><span class="eng-rate">${engRate}%</span></td>
+                </tr>
+            `}).join('');
+}
+
+// Init on load
+init();
