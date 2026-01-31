@@ -19,21 +19,25 @@ const loader = document.getElementById('loader');
 const METRIC_INSIGHTS = {
     'Impressions': {
         def: "Total visibility. The size of your potential audience and digital footprint.",
+        benchmark: "Benchmark: >10% Monthly Growth",
         good: ["Algorithm trust is high.", "Content format is working.", "Doubling down on recent topics."],
         bad: ["Review posting time.", "Hook needs more urgency.", "Test a new content format."]
     },
     'Engagements': {
         def: "Total interactions. The definitive measure of how much people care.",
+        benchmark: "Benchmark: ~2% of Impressions",
         good: ["High audience trust.", "Topics are resonating.", "Strong Calls to Action."],
         bad: ["Ask more questions.", "Replies need more depth.", "Content was too passive."]
     },
     'New Followers': {
         def: "Audience retention. The permanent asset that compounds future reach.",
+        benchmark: "Target: 2-5% Monthly Growth",
         good: ["Profile conversion is high.", "Bio is clear and compelling.", "Reach is targeted correctly."],
         bad: ["Audit your Profile/Bio.", "Content may be off-niche.", "Add 'Follow' CTAs to comments."]
     },
     'Engagement Rate': {
         def: "Content efficiency. The truest measure of Content-Market Fit.",
+        benchmark: "Industry Avg: 1.8% - 3.0%",
         good: ["Highly relevant audience.", "Quality over Quantity.", "Perfect topic alignment."],
         bad: ["Stop chasing vanity metrics.", "Focus on depth, not width.", "Cut 'filler' content."]
     }
@@ -393,6 +397,7 @@ function createSummaryCard(title, total, stats, suffix) {
         <div class="summary-card">
             <h3>${title}</h3>
             <div class="value">${formatNum(total)}${suffix === '%' ? '%' : ''}</div>
+            ${insights && insights.benchmark ? `<div class="benchmark-badge">${insights.benchmark}</div>` : ''}
             ${hasStartDate ? `
             <div class="comparison">
                 <div class="before">

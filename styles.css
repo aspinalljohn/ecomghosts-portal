@@ -456,3 +456,11 @@ input[type="file"] { display: none; }
     padding-left: 16px;
     margin: 0;
 }
+
+.benchmark-badge {
+    font-size: 11px;
+    color: #888;
+    margin-top: 6px;
+    font-style: italic;
+    display: block;
+}
