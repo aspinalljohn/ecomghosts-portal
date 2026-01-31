@@ -203,7 +203,22 @@ function parseExcel(file) {
                 // TOP POSTS - Fixed parsing
                 if (workbook.SheetNames.includes('TOP POSTS')) {
                     const raw = XLSX.utils.sheet_to_json(workbook.Sheets['TOP POSTS'], { header: 1 });
-
+```javascript
+                // DEMOGRAPHICS PARSING
+                if (workbook.SheetNames.includes('DEMOGRAPHICS')) {
+                    const sheet = XLSX.utils.sheet_to_json(workbook.Sheets['DEMOGRAPHICS']);
+                    // Filter for "Job titles" and take top 8
+                    const jobs = sheet
+                        .filter(row => row['Top Demographics'] === 'Job titles')
+                        .slice(0, 8)
+                        .map(row => ({
+                            title: row['Value'],
+                            percentage: parseFloat(row['Percentage'])
+                        }));
+                    result.demographics = jobs;
+                } else {
+                    result.demographics = [];
+                }
                     // Find the header row (contains 'Post URL')
                     let headerIdx = -1;
                     for (let i = 0; i < raw.length; i++) {
