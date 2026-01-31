@@ -182,6 +182,10 @@ function init() {
 function updateHeader() {
     // Add logout button and user management to header
     const controls = document.querySelector('.controls');
+    if (!controls) {
+        console.error('Controls element not found');
+        return;
+    }
 
     // Remove existing auth controls
     const existingLogout = document.getElementById('logoutBtn');
@@ -190,10 +194,18 @@ function updateHeader() {
     if (existingUserMgmt) existingUserMgmt.remove();
 
     // Hide/show client select and related controls based on role
-    const clientSelectGroup = document.querySelector('.controls .control-group:has(#clientSelect)');
+    // Find control groups by checking their children instead of :has() selector
+    const controlGroups = document.querySelectorAll('.controls .control-group');
+    let clientSelectGroup = null;
+    let uploadGroup = null;
+
+    controlGroups.forEach(group => {
+        if (group.querySelector('#clientSelect')) clientSelectGroup = group;
+        if (group.querySelector('#fileInput')) uploadGroup = group;
+    });
+
     const startDateGroupEl = document.getElementById('startDateGroup');
     const deleteGroupEl = document.getElementById('deleteGroup');
-    const uploadGroup = document.querySelector('.controls .control-group:has(#fileInput)');
 
     if (!isAdmin()) {
         // Hide client select and upload for regular users
@@ -1134,7 +1146,7 @@ function renderAdminMissionControl() {
                                 </tr>
                             </thead>
                             <tbody>
-                                ${allClients.map(clientName => {
+                                ${allClients.map((clientName, idx) => {
                                     const client = clients[clientName];
                                     const uploadDate = client.uploadedAt ? new Date(client.uploadedAt).toLocaleDateString() : 'Unknown';
                                     return `
@@ -1142,7 +1154,7 @@ function renderAdminMissionControl() {
                                             <td><strong>${clientName}</strong></td>
                                             <td style="color:#888;font-size:13px;">${uploadDate}</td>
                                             <td>
-                                                <button class="btn btn-small" onclick="selectClient('${clientName.replace(/'/g, "\\'")}')">
+                                                <button class="btn btn-small" data-client-name="${clientName}" data-action="view-client">
                                                     View Dashboard
                                                 </button>
                                             </td>
@@ -1190,6 +1202,16 @@ function renderAdminMissionControl() {
 
     dashboard.classList.remove('hidden');
     emptyState.classList.add('hidden');
+
+    // Add event listeners for View Dashboard buttons
+    document.querySelectorAll('[data-action="view-client"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const clientName = btn.getAttribute('data-client-name');
+            if (clientName) {
+                selectClient(clientName);
+            }
+        });
+    });
 }
 
 // ============================================================================
