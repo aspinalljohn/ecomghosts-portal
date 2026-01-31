@@ -83,6 +83,7 @@ function getAccessibleClients() {
 
 let clients = JSON.parse(localStorage.getItem('ecomghosts_clients') || '{}');
 let charts = {};
+let currentClient = null;
 
 // DOM elements
 const clientSelect = document.getElementById('clientSelect');
@@ -163,6 +164,7 @@ function init() {
 
     // Auto-select first client for non-admin users
     if (!isAdmin()) {
+        console.log('User is not admin, checking clients...');
         const accessibleClients = getAccessibleClients();
         if (accessibleClients.length > 0) {
             selectClient(accessibleClients[0]);
@@ -171,9 +173,9 @@ function init() {
         }
     } else {
         // Admin: Show mission control when no client selected
-        if (!currentClient) {
-            renderAdminMissionControl();
-        }
+        console.log('User is admin, currentClient:', currentClient);
+        console.log('Rendering mission control...');
+        renderAdminMissionControl();
     }
 }
 
@@ -1055,11 +1057,16 @@ function renderDemographics(demographics) {
 // ============================================================================
 
 function renderAdminMissionControl() {
+    console.log('renderAdminMissionControl called');
+    console.log('emptyState element:', emptyState);
+    console.log('dashboard element:', dashboard);
+
     const allClients = Object.keys(clients).sort();
     const allUsers = Object.entries(users);
 
     // Hide empty state and show dashboard
     emptyState.classList.add('hidden');
+    console.log('emptyState hidden');
 
     // Use the dashboard div for mission control
     dashboard.innerHTML = `
