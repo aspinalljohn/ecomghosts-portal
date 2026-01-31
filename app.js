@@ -360,10 +360,7 @@ function renderCharts(data, startDate) {
         <div class="chart-card">
             <div class="chart-header">
                 <h3 class="chart-title">
-                    <svg class="ghost-icon-sm" viewBox="0 0 24 24" fill="${initialColor}">
-                        <path d="M12 2C7.58 2 4 5.58 4 10v10.5c0 .83.67 1.5 1.5 1.5s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.5-.67 1.5-1.5V10c0-4.42-3.58-8-8-8zm-2 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
-                    </svg>
-                    Impressions
+                    👻 Impressions
                 </h3>
                 <div class="time-toggle" data-chart="impressions">
                     <button data-period="daily">Daily</button>
@@ -376,10 +373,7 @@ function renderCharts(data, startDate) {
         <div class="chart-card">
             <div class="chart-header">
                 <h3 class="chart-title">
-                    <svg class="ghost-icon-sm" viewBox="0 0 24 24" fill="${initialColor}">
-                        <path d="M12 2C7.58 2 4 5.58 4 10v10.5c0 .83.67 1.5 1.5 1.5s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.5-.67 1.5-1.5V10c0-4.42-3.58-8-8-8zm-2 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
-                    </svg>
-                    Engagements
+                    👻 Engagements
                 </h3>
                 <div class="time-toggle" data-chart="engagements">
                     <button data-period="daily">Daily</button>
@@ -392,10 +386,7 @@ function renderCharts(data, startDate) {
         <div class="chart-card">
             <div class="chart-header">
                 <h3 class="chart-title">
-                    <svg class="ghost-icon-sm" viewBox="0 0 24 24" fill="${initialColor}">
-                        <path d="M12 2C7.58 2 4 5.58 4 10v10.5c0 .83.67 1.5 1.5 1.5s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.5-.67 1.5-1.5V10c0-4.42-3.58-8-8-8zm-2 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
-                    </svg>
-                    New Followers
+                    👻 New Followers
                 </h3>
                 <div class="time-toggle" data-chart="followers">
                     <button data-period="daily">Daily</button>
@@ -408,10 +399,7 @@ function renderCharts(data, startDate) {
         <div class="chart-card">
             <div class="chart-header">
                 <h3 class="chart-title">
-                    <svg class="ghost-icon-sm" viewBox="0 0 24 24" fill="${initialColor}">
-                        <path d="M12 2C7.58 2 4 5.58 4 10v10.5c0 .83.67 1.5 1.5 1.5s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.5-.67 1.5-1.5V10c0-4.42-3.58-8-8-8zm-2 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
-                    </svg>
-                    Engagement Rate
+                    👻 Engagement Rate
                 </h3>
                 <div class="time-toggle" data-chart="engagementRate">
                     <button data-period="daily">Daily</button>
@@ -428,18 +416,14 @@ function renderCharts(data, startDate) {
         const chartName = toggle.dataset.chart;
         toggle.querySelectorAll('button').forEach(btn => {
             btn.addEventListener('click', () => {
-                // Update all toggles to the same period
                 const period = btn.dataset.period;
-                document.querySelectorAll('.time-toggle').forEach(t => {
-                    t.querySelectorAll('button').forEach(b => {
-                        b.classList.toggle('active', b.dataset.period === period);
-                    });
-                });
+                
+                // Update active button styling for this specific chart only
+                toggle.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
 
-                // Update all charts
-                Object.keys(charts).forEach(name => {
-                    updateChart(name, period);
-                });
+                // Update the specific chart
+                updateChart(chartName, period);
             });
         });
     });
