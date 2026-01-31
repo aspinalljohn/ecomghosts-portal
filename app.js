@@ -18,6 +18,7 @@ const loader = document.getElementById('loader');
 
 // Initialize
 function init() {
+    Object.values(clients).forEach(hydrateClientData);
     updateClientDropdown();
 
     clientSelect.addEventListener('change', () => {
@@ -39,6 +40,18 @@ function init() {
     });
 
     fileInput.addEventListener('change', handleFileUpload);
+}
+
+function hydrateClientData(client) {
+    ['engagement', 'followers', 'topPosts'].forEach(key => {
+        if (client[key]) {
+            client[key].forEach(item => {
+                if (item.date) {
+                    item.date = new Date(item.date);
+                }
+            });
+        }
+    });
 }
 
 function saveClients() {
@@ -350,11 +363,14 @@ function renderCharts(data, startDate) {
     Object.values(charts).forEach(c => c.destroy());
     charts = {};
 
+    const initialPeriod = 'weekly';
+    const initialColor = getChartColor(initialPeriod);
+
     chartsGrid.innerHTML = `
         <div class="chart-card">
             <div class="chart-header">
                 <h3 class="chart-title">
-                    <svg class="ghost-icon-sm" viewBox="0 0 24 24" fill="#f97316">
+                    <svg class="ghost-icon-sm" viewBox="0 0 24 24" fill="${initialColor}">
                         <path d="M12 2C7.58 2 4 5.58 4 10v10.5c0 .83.67 1.5 1.5 1.5s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.5-.67 1.5-1.5V10c0-4.42-3.58-8-8-8zm-2 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
                     </svg>
                     Impressions
@@ -370,7 +386,7 @@ function renderCharts(data, startDate) {
         <div class="chart-card">
             <div class="chart-header">
                 <h3 class="chart-title">
-                    <svg class="ghost-icon-sm" viewBox="0 0 24 24" fill="#fb923c">
+                    <svg class="ghost-icon-sm" viewBox="0 0 24 24" fill="${initialColor}">
                         <path d="M12 2C7.58 2 4 5.58 4 10v10.5c0 .83.67 1.5 1.5 1.5s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.5-.67 1.5-1.5V10c0-4.42-3.58-8-8-8zm-2 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
                     </svg>
                     Engagements
@@ -386,7 +402,7 @@ function renderCharts(data, startDate) {
         <div class="chart-card">
             <div class="chart-header">
                 <h3 class="chart-title">
-                    <svg class="ghost-icon-sm" viewBox="0 0 24 24" fill="#ea580c">
+                    <svg class="ghost-icon-sm" viewBox="0 0 24 24" fill="${initialColor}">
                         <path d="M12 2C7.58 2 4 5.58 4 10v10.5c0 .83.67 1.5 1.5 1.5s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.5-.67 1.5-1.5V10c0-4.42-3.58-8-8-8zm-2 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
                     </svg>
                     New Followers
@@ -402,7 +418,7 @@ function renderCharts(data, startDate) {
         <div class="chart-card">
             <div class="chart-header">
                 <h3 class="chart-title">
-                    <svg class="ghost-icon-sm" viewBox="0 0 24 24" fill="#8b5cf6">
+                    <svg class="ghost-icon-sm" viewBox="0 0 24 24" fill="${initialColor}">
                         <path d="M12 2C7.58 2 4 5.58 4 10v10.5c0 .83.67 1.5 1.5 1.5s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.5-.67 1.5-1.5V10c0-4.42-3.58-8-8-8zm-2 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
                     </svg>
                     Engagement Rate
@@ -419,13 +435,21 @@ function renderCharts(data, startDate) {
 
     // Setup toggle buttons
     document.querySelectorAll('.time-toggle').forEach(toggle => {
+        const chartName = toggle.dataset.chart;
         toggle.querySelectorAll('button').forEach(btn => {
             btn.addEventListener('click', () => {
-                toggle.querySelectorAll('button').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                const chartName = toggle.dataset.chart;
+                // Update all toggles to the same period
                 const period = btn.dataset.period;
-                updateChart(chartName, period);
+                document.querySelectorAll('.time-toggle').forEach(t => {
+                    t.querySelectorAll('button').forEach(b => {
+                        b.classList.toggle('active', b.dataset.period === period);
+                    });
+                });
+
+                // Update all charts
+                Object.keys(charts).forEach(name => {
+                    updateChart(name, period);
+                });
             });
         });
     });
@@ -437,10 +461,19 @@ function renderCharts(data, startDate) {
     }));
 
     // Create charts
-    createChart('impressions', data.engagement, 'impressions', '#f97316', startDate, 'weekly');
-    createChart('engagements', data.engagement, 'engagements', '#fb923c', startDate, 'weekly');
-    createChart('followers', data.followers, 'newFollowers', '#ea580c', startDate, 'weekly');
-    createChart('engagementRate', engagementRateData, 'engagementRate', '#8b5cf6', startDate, 'weekly', (v) => v.toFixed(2) + '%');
+    createChart('impressions', data.engagement, 'impressions', startDate, initialPeriod);
+    createChart('engagements', data.engagement, 'engagements', startDate, initialPeriod);
+    createChart('followers', data.followers, 'newFollowers', startDate, initialPeriod);
+    createChart('engagementRate', engagementRateData, 'engagementRate', startDate, initialPeriod, (v) => v.toFixed(2) + '%');
+}
+
+function getChartColor(period) {
+    switch (period) {
+        case 'daily': return '#10b981'; // Green
+        case 'weekly': return '#8b5cf6'; // Purple
+        case 'monthly': return '#f97316'; // Orange
+        default: return '#888';
+    }
 }
 
 function aggregateData(data, period) {
@@ -485,10 +518,11 @@ function formatDateLabel(dateStr, period) {
     return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-function createChart(name, rawData, valueKey, color, startDate, period, tickCallback) {
+function createChart(name, rawData, valueKey, startDate, period, tickCallback) {
     const canvas = document.getElementById(name + 'Chart');
     if (!canvas) return;
 
+    const color = getChartColor(period);
     const agg = aggregateData(rawData, period);
     const labels = agg.labels.map(l => formatDateLabel(l, period));
     const values = agg.data.map(d => d[valueKey] || 0);
@@ -566,7 +600,6 @@ function createChart(name, rawData, valueKey, color, startDate, period, tickCall
     // Store metadata for updates
     charts[name]._rawData = rawData;
     charts[name]._valueKey = valueKey;
-    charts[name]._color = color;
     charts[name]._startDate = startDate;
     charts[name]._tickCallback = tickCallback;
 }
@@ -579,6 +612,7 @@ function updateChart(name, period) {
     const valueKey = chart._valueKey;
     const startDate = chart._startDate;
     const tickCallback = chart._tickCallback;
+    const color = getChartColor(period);
 
     const agg = aggregateData(rawData, period);
     const labels = agg.labels.map(l => formatDateLabel(l, period));
@@ -593,6 +627,8 @@ function updateChart(name, period) {
     chart.data.labels = labels;
     chart.data.datasets[0].data = values;
     chart.data.datasets[0].pointRadius = period === 'daily' ? 0 : 2;
+    chart.data.datasets[0].borderColor = color;
+    chart.data.datasets[0].backgroundColor = color + '33';
 
     if (tickCallback) {
         chart.options.scales.y.ticks.callback = tickCallback;

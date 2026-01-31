@@ -81,7 +81,7 @@ select:focus, input:focus { outline: none; border-color: #f97316; }
 
 .btn {
     padding: 12px 20px;
-    background: linear-gradient(135deg, #f97316, #ea580c);
+    background: #f97316;
     border: none;
     border-radius: 8px;
     color: white;
