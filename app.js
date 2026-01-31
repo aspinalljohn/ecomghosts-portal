@@ -399,6 +399,22 @@ function renderCharts(data, startDate) {
             </div>
             <div class="chart-container"><canvas id="followersChart"></canvas></div>
         </div>
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3 class="chart-title">
+                    <svg class="ghost-icon-sm" viewBox="0 0 24 24" fill="#8b5cf6">
+                        <path d="M12 2C7.58 2 4 5.58 4 10v10.5c0 .83.67 1.5 1.5 1.5s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.5-.67 1.5-1.5V10c0-4.42-3.58-8-8-8zm-2 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
+                    </svg>
+                    Engagement Rate
+                </h3>
+                <div class="time-toggle" data-chart="engagementRate">
+                    <button data-period="daily">Daily</button>
+                    <button data-period="weekly" class="active">Weekly</button>
+                    <button data-period="monthly">Monthly</button>
+                </div>
+            </div>
+            <div class="chart-container"><canvas id="engagementRateChart"></canvas></div>
+        </div>
     `;
 
     // Setup toggle buttons
@@ -414,10 +430,17 @@ function renderCharts(data, startDate) {
         });
     });
 
-    // Create charts with orange colors (all orange theme)
+    // Calculate engagement rate data
+    const engagementRateData = data.engagement.map(d => ({
+        date: d.date,
+        engagementRate: d.impressions > 0 ? (d.engagements / d.impressions) * 100 : 0
+    }));
+
+    // Create charts
     createChart('impressions', data.engagement, 'impressions', '#f97316', startDate, 'weekly');
     createChart('engagements', data.engagement, 'engagements', '#fb923c', startDate, 'weekly');
     createChart('followers', data.followers, 'newFollowers', '#ea580c', startDate, 'weekly');
+    createChart('engagementRate', engagementRateData, 'engagementRate', '#8b5cf6', startDate, 'weekly', (v) => v.toFixed(2) + '%');
 }
 
 function aggregateData(data, period) {
@@ -462,7 +485,7 @@ function formatDateLabel(dateStr, period) {
     return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-function createChart(name, rawData, valueKey, color, startDate, period) {
+function createChart(name, rawData, valueKey, color, startDate, period, tickCallback) {
     const canvas = document.getElementById(name + 'Chart');
     if (!canvas) return;
 
@@ -529,7 +552,7 @@ function createChart(name, rawData, valueKey, color, startDate, period) {
                     grid: { color: '#333' },
                     ticks: {
                         color: '#888',
-                        callback: (v) => formatNum(v)
+                        callback: tickCallback || formatNum
                     }
                 }
             },
@@ -545,6 +568,7 @@ function createChart(name, rawData, valueKey, color, startDate, period) {
     charts[name]._valueKey = valueKey;
     charts[name]._color = color;
     charts[name]._startDate = startDate;
+    charts[name]._tickCallback = tickCallback;
 }
 
 function updateChart(name, period) {
@@ -554,6 +578,7 @@ function updateChart(name, period) {
     const rawData = chart._rawData;
     const valueKey = chart._valueKey;
     const startDate = chart._startDate;
+    const tickCallback = chart._tickCallback;
 
     const agg = aggregateData(rawData, period);
     const labels = agg.labels.map(l => formatDateLabel(l, period));
@@ -568,6 +593,10 @@ function updateChart(name, period) {
     chart.data.labels = labels;
     chart.data.datasets[0].data = values;
     chart.data.datasets[0].pointRadius = period === 'daily' ? 0 : 2;
+
+    if (tickCallback) {
+        chart.options.scales.y.ticks.callback = tickCallback;
+    }
 
     if (startIndex >= 0) {
         chart.options.plugins.annotation.annotations = {
