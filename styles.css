@@ -465,3 +465,214 @@ input[type="file"] { display: none; }
     font-style: italic;
     display: block;
 }
+
+/* Login Screen */
+.login-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #0f0f0f;
+    z-index: 10000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.login-box {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 16px;
+    padding: 48px;
+    text-align: center;
+    max-width: 400px;
+    width: 90%;
+}
+.login-box h1 {
+    font-size: 28px;
+    margin-bottom: 8px;
+    color: #fff;
+}
+.login-box p {
+    color: #888;
+    margin-bottom: 32px;
+}
+#loginForm {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+#loginForm input {
+    padding: 14px 16px;
+    background: #0f0f0f;
+    border: 1px solid #333;
+    border-radius: 8px;
+    color: #e0e0e0;
+    font-size: 14px;
+}
+#loginForm input:focus {
+    outline: none;
+    border-color: #f97316;
+}
+.login-error {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid #ef4444;
+    color: #ef4444;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 13px;
+}
+
+/* User Management */
+.user-management {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 32px;
+}
+.user-management h2 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.users-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 16px;
+}
+.users-table th {
+    text-align: left;
+    padding: 12px;
+    border-bottom: 1px solid #333;
+    color: #888;
+    font-size: 12px;
+    text-transform: uppercase;
+}
+.users-table td {
+    padding: 12px;
+    border-bottom: 1px solid #222;
+    font-size: 14px;
+}
+.badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+.badge-admin {
+    background: rgba(249, 115, 22, 0.2);
+    color: #f97316;
+}
+.badge-user {
+    background: rgba(139, 92, 246, 0.2);
+    color: #8b5cf6;
+}
+.btn-small {
+    padding: 6px 12px;
+    font-size: 12px;
+}
+.logout-btn {
+    background: #333;
+    padding: 8px 16px;
+    font-size: 13px;
+}
+.logout-btn:hover {
+    background: #444;
+    box-shadow: none;
+}
+
+/* Modal */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.8);
+    z-index: 10001;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.modal-content {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 16px;
+    padding: 32px;
+    max-width: 500px;
+    width: 90%;
+}
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+.modal-header h3 {
+    font-size: 20px;
+}
+.close-modal {
+    background: none;
+    border: none;
+    color: #888;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+}
+.close-modal:hover {
+    color: #fff;
+}
+.form-group {
+    margin-bottom: 16px;
+}
+.form-group label {
+    display: block;
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 6px;
+}
+.form-group input,
+.form-group select {
+    width: 100%;
+}
+.client-checklist {
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 12px;
+    background: #0f0f0f;
+    border: 1px solid #333;
+    border-radius: 8px;
+}
+.client-checklist label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    cursor: pointer;
+    font-size: 14px;
+}
+.client-checklist input[type="checkbox"] {
+    min-width: auto;
+    width: 16px;
+    height: 16px;
+}
+.modal-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 24px;
+}
+.btn-secondary {
+    background: #333;
+}
+.btn-secondary:hover {
+    background: #444;
+    box-shadow: none;
+}

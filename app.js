@@ -1,6 +1,87 @@
-// State
+// ============================================================================
+// AUTHENTICATION SYSTEM
+// ============================================================================
+
+let users = JSON.parse(localStorage.getItem('ecomghosts_users') || '{}');
+let currentUser = null;
+
+// Initialize default admin if no users exist
+if (Object.keys(users).length === 0) {
+    users = {
+        'admin': {
+            password: 'admin123',
+            role: 'admin',
+            clients: [] // Empty means access to all
+        }
+    };
+    localStorage.setItem('ecomghosts_users', JSON.stringify(users));
+}
+
+// Check for existing session
+const sessionUser = sessionStorage.getItem('ecomghosts_session');
+if (sessionUser && users[sessionUser]) {
+    currentUser = sessionUser;
+}
+
+// DOM elements - Auth
+const loginScreen = document.getElementById('loginScreen');
+const loginForm = document.getElementById('loginForm');
+const loginUsername = document.getElementById('loginUsername');
+const loginPassword = document.getElementById('loginPassword');
+const loginError = document.getElementById('loginError');
+
+// Login handler
+loginForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const username = loginUsername.value.trim();
+    const password = loginPassword.value;
+
+    if (users[username] && users[username].password === password) {
+        currentUser = username;
+        sessionStorage.setItem('ecomghosts_session', username);
+        loginScreen.classList.add('hidden');
+        init();
+    } else {
+        loginError.textContent = 'Invalid username or password';
+        loginError.classList.remove('hidden');
+    }
+});
+
+// Logout function
+function logout() {
+    if (confirm('Are you sure you want to log out?')) {
+        currentUser = null;
+        sessionStorage.removeItem('ecomghosts_session');
+        location.reload();
+    }
+}
+
+// Check if current user is admin
+function isAdmin() {
+    return currentUser && users[currentUser]?.role === 'admin';
+}
+
+// Check if user has access to a client
+function hasClientAccess(clientName) {
+    if (!currentUser) return false;
+    const user = users[currentUser];
+    if (user.role === 'admin') return true; // Admin sees all
+    return user.clients && user.clients.includes(clientName);
+}
+
+// Get accessible clients for current user
+function getAccessibleClients() {
+    if (!currentUser) return [];
+    const user = users[currentUser];
+    if (user.role === 'admin') return Object.keys(clients); // Admin sees all
+    return Object.keys(clients).filter(name => user.clients && user.clients.includes(name));
+}
+
+// ============================================================================
+// STATE & ORIGINAL FUNCTIONALITY
+// ============================================================================
+
 let clients = JSON.parse(localStorage.getItem('ecomghosts_clients') || '{}');
-let currentClient = null;
 let charts = {};
 
 // DOM elements
@@ -45,12 +126,19 @@ const METRIC_INSIGHTS = {
 
 // Initialize
 function init() {
+    // If not logged in, show login screen
+    if (!currentUser) {
+        loginScreen.classList.remove('hidden');
+        return;
+    }
+
     Object.values(clients).forEach(hydrateClientData);
     updateClientDropdown();
+    updateHeader();
 
     clientSelect.addEventListener('change', () => {
         const name = clientSelect.value;
-        if (name && clients[name]) {
+        if (name && clients[name] && hasClientAccess(name)) {
             selectClient(name);
         } else {
             currentClient = null;
@@ -59,7 +147,7 @@ function init() {
     });
 
     startDateInput.addEventListener('change', () => {
-        if (currentClient) {
+        if (currentClient && hasClientAccess(currentClient)) {
             clients[currentClient].startDate = startDateInput.value;
             saveClients();
             renderDashboard();
@@ -67,6 +155,49 @@ function init() {
     });
 
     fileInput.addEventListener('change', handleFileUpload);
+}
+
+function updateHeader() {
+    // Add logout button and user management to header
+    const controls = document.querySelector('.controls');
+
+    // Remove existing auth controls
+    const existingLogout = document.getElementById('logoutBtn');
+    const existingUserMgmt = document.getElementById('userMgmtBtn');
+    if (existingLogout) existingLogout.remove();
+    if (existingUserMgmt) existingUserMgmt.remove();
+
+    // Add user management button (admin only)
+    if (isAdmin()) {
+        const userMgmtGroup = document.createElement('div');
+        userMgmtGroup.className = 'control-group';
+        userMgmtGroup.style.alignSelf = 'flex-end';
+        userMgmtGroup.id = 'userMgmtBtn';
+        userMgmtGroup.innerHTML = `
+            <button class="btn btn-secondary" onclick="openUserManagement()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                </svg>
+                Manage Users
+            </button>
+        `;
+        controls.appendChild(userMgmtGroup);
+    }
+
+    // Add logout button
+    const logoutGroup = document.createElement('div');
+    logoutGroup.className = 'control-group';
+    logoutGroup.style.alignSelf = 'flex-end';
+    logoutGroup.id = 'logoutBtn';
+    logoutGroup.innerHTML = `
+        <button class="btn logout-btn" onclick="logout()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+            </svg>
+            Logout (${currentUser})
+        </button>
+    `;
+    controls.appendChild(logoutGroup);
 }
 
 function hydrateClientData(client) {
@@ -86,9 +217,9 @@ function saveClients() {
 }
 
 function updateClientDropdown() {
-    const names = Object.keys(clients).sort();
+    const accessibleClients = getAccessibleClients();
     clientSelect.innerHTML = '<option value="">-- Select or upload new --</option>';
-    names.forEach(name => {
+    accessibleClients.sort().forEach(name => {
         const opt = document.createElement('option');
         opt.value = name;
         opt.textContent = name;
@@ -97,18 +228,33 @@ function updateClientDropdown() {
 }
 
 function selectClient(name) {
+    if (!hasClientAccess(name)) {
+        alert('You do not have access to this client');
+        return;
+    }
     currentClient = name;
     clientSelect.value = name;
     startDateInput.value = clients[name].startDate || '';
     startDateGroup.style.display = 'flex';
-    deleteGroup.style.display = 'flex';
+
+    // Only show delete button for admin
+    deleteGroup.style.display = isAdmin() ? 'flex' : 'none';
+
     showDashboard();
     renderDashboard();
 }
 
 function deleteClient() {
-    if (!currentClient) return;
+    if (!currentClient || !isAdmin()) return;
     if (confirm(`Delete "${currentClient}" and all their data?`)) {
+        // Also remove from user assignments
+        Object.values(users).forEach(user => {
+            if (user.clients && user.clients.includes(currentClient)) {
+                user.clients = user.clients.filter(c => c !== currentClient);
+            }
+        });
+        localStorage.setItem('ecomghosts_users', JSON.stringify(users));
+
         delete clients[currentClient];
         saveClients();
         updateClientDropdown();
@@ -141,6 +287,7 @@ async function handleFileUpload(e) {
         const clientName = prompt('Enter client name:');
         if (!clientName || !clientName.trim()) {
             alert('Client name is required');
+            loader.classList.add('hidden');
             return;
         }
 
@@ -151,6 +298,18 @@ async function handleFileUpload(e) {
             uploadedAt: new Date().toISOString()
         };
         saveClients();
+
+        // If user is not admin, automatically assign this client to them
+        if (!isAdmin()) {
+            if (!users[currentUser].clients) {
+                users[currentUser].clients = [];
+            }
+            if (!users[currentUser].clients.includes(name)) {
+                users[currentUser].clients.push(name);
+                localStorage.setItem('ecomghosts_users', JSON.stringify(users));
+            }
+        }
+
         updateClientDropdown();
         selectClient(name);
     } catch (err) {
@@ -228,41 +387,33 @@ function parseExcel(file) {
                     }
                 }
 
-                // TOP POSTS - Fixed parsing
+                // TOP POSTS
                 if (workbook.SheetNames.includes('TOP POSTS')) {
                     const raw = XLSX.utils.sheet_to_json(workbook.Sheets['TOP POSTS'], { header: 1 });
 
-                    // Find the header row (contains 'Post URL')
                     let headerIdx = -1;
-                    let typeColIdx = -1;
                     for (let i = 0; i < raw.length; i++) {
                         const row = raw[i];
                         if (row && row[0] === 'Post URL') {
                             headerIdx = i;
-                            // Find 'Type' or 'Post type' column
-                            typeColIdx = row.findIndex(cell => cell === 'Type' || cell === 'Post type');
                             break;
                         }
                     }
 
-                    // Start parsing from row after header
                     const startRow = headerIdx >= 0 ? headerIdx + 1 : 2;
 
                     for (let i = startRow; i < raw.length && result.topPosts.length < 50; i++) {
                         const row = raw[i];
                         if (row && row[0] && String(row[0]).includes('linkedin.com')) {
-                            const postType = typeColIdx !== -1 && row[typeColIdx] ? String(row[typeColIdx]).trim() : 'Text';
                             result.topPosts.push({
                                 url: row[0],
                                 date: excelDateToJS(row[1]),
                                 engagements: parseInt(row[2]) || 0,
-                                impressions: parseInt(row[6]) || 0,
-                                type: postType
+                                impressions: parseInt(row[6]) || 0
                             });
                         }
                     }
 
-                    // Sort by engagements descending
                     result.topPosts.sort((a, b) => b.engagements - a.engagements);
                 }
 
@@ -292,7 +443,6 @@ function excelDateToJS(val) {
     if (!val) return null;
     if (val instanceof Date) return val;
     if (typeof val === 'number') {
-        // Excel date serial number
         return new Date((val - 25569) * 86400 * 1000);
     }
     if (typeof val === 'string') {
@@ -350,7 +500,7 @@ function renderSummaryCards(data, startDate) {
     const impStats = calcBeforeAfter(data.engagement, startDate, 'impressions');
     const engStats = calcBeforeAfter(data.engagement, startDate, 'engagements');
     const folStats = calcBeforeAfter(data.followers, startDate, 'newFollowers');
-    
+
     const engagementRateData = data.engagement.map(d => ({
         date: d.date,
         rate: d.impressions > 0 ? (d.engagements / d.impressions) * 100 : 0
@@ -419,19 +569,15 @@ function createSummaryCard(title, total, stats, suffix) {
 }
 
 function renderCharts(data, startDate) {
-    // Destroy existing charts
     Object.values(charts).forEach(c => c.destroy());
     charts = {};
 
     const initialPeriod = 'weekly';
-    const initialColor = getChartColor(initialPeriod);
 
     chartsGrid.innerHTML = `
         <div class="chart-card">
             <div class="chart-header">
-                <h3 class="chart-title">
-                    👻 Impressions
-                </h3>
+                <h3 class="chart-title">👻 Impressions</h3>
                 <div class="time-toggle" data-chart="impressions">
                     <button data-period="daily">Daily</button>
                     <button data-period="weekly" class="active">Weekly</button>
@@ -442,9 +588,7 @@ function renderCharts(data, startDate) {
         </div>
         <div class="chart-card">
             <div class="chart-header">
-                <h3 class="chart-title">
-                    👻 Engagements
-                </h3>
+                <h3 class="chart-title">👻 Engagements</h3>
                 <div class="time-toggle" data-chart="engagements">
                     <button data-period="daily">Daily</button>
                     <button data-period="weekly" class="active">Weekly</button>
@@ -455,9 +599,7 @@ function renderCharts(data, startDate) {
         </div>
         <div class="chart-card">
             <div class="chart-header">
-                <h3 class="chart-title">
-                    👻 New Followers
-                </h3>
+                <h3 class="chart-title">👻 New Followers</h3>
                 <div class="time-toggle" data-chart="followers">
                     <button data-period="daily">Daily</button>
                     <button data-period="weekly" class="active">Weekly</button>
@@ -468,9 +610,7 @@ function renderCharts(data, startDate) {
         </div>
         <div class="chart-card">
             <div class="chart-header">
-                <h3 class="chart-title">
-                    👻 Engagement Rate
-                </h3>
+                <h3 class="chart-title">👻 Engagement Rate</h3>
                 <div class="time-toggle" data-chart="engagementRate">
                     <button data-period="daily">Daily</button>
                     <button data-period="weekly" class="active">Weekly</button>
@@ -481,30 +621,23 @@ function renderCharts(data, startDate) {
         </div>
     `;
 
-    // Setup toggle buttons
     document.querySelectorAll('.time-toggle').forEach(toggle => {
         const chartName = toggle.dataset.chart;
         toggle.querySelectorAll('button').forEach(btn => {
             btn.addEventListener('click', () => {
                 const period = btn.dataset.period;
-                
-                // Update active button styling for this specific chart only
                 toggle.querySelectorAll('button').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
-
-                // Update the specific chart
                 updateChart(chartName, period);
             });
         });
     });
 
-    // Calculate engagement rate data
     const engagementRateData = data.engagement.map(d => ({
         date: d.date,
         engagementRate: d.impressions > 0 ? (d.engagements / d.impressions) * 100 : 0
     }));
 
-    // Create charts
     createChart('impressions', data.engagement, 'impressions', startDate, initialPeriod);
     createChart('engagements', data.engagement, 'engagements', startDate, initialPeriod);
     createChart('followers', data.followers, 'newFollowers', startDate, initialPeriod);
@@ -513,9 +646,9 @@ function renderCharts(data, startDate) {
 
 function getChartColor(period) {
     switch (period) {
-        case 'daily': return '#10b981'; // Green
-        case 'weekly': return '#8b5cf6'; // Purple
-        case 'monthly': return '#f97316'; // Orange
+        case 'daily': return '#10b981';
+        case 'weekly': return '#8b5cf6';
+        case 'monthly': return '#f97316';
         default: return '#888';
     }
 }
@@ -571,7 +704,6 @@ function createChart(name, rawData, valueKey, startDate, period, tickCallback) {
     const labels = agg.labels.map(l => formatDateLabel(l, period));
     const values = agg.data.map(d => d[valueKey] || 0);
 
-    // Find start date index for annotation
     let startIndex = -1;
     if (startDate) {
         const startStr = startDate.toISOString().split('T')[0];
@@ -641,7 +773,6 @@ function createChart(name, rawData, valueKey, startDate, period, tickCallback) {
         }
     });
 
-    // Store metadata for updates
     charts[name]._rawData = rawData;
     charts[name]._valueKey = valueKey;
     charts[name]._startDate = startDate;
@@ -705,11 +836,8 @@ function updateChart(name, period) {
 }
 
 function renderTopPosts(posts, startDate) {
-    console.log('Rendering top posts:', posts);
-
     const topPostsSection = document.getElementById('topPostsSection');
 
-    // Remove any existing attribution note
     const existingNote = topPostsSection.querySelector('.attribution-note');
     if (existingNote) existingNote.remove();
 
@@ -721,10 +849,8 @@ function renderTopPosts(posts, startDate) {
     const today = new Date();
     const topTen = posts.slice(0, 10);
 
-    // Count posts attributed to EcomGhosts (on or after start date)
     const attributedPosts = startDate ? topTen.filter(p => p.date && p.date >= startDate).length : 0;
 
-    // Add attribution note if start date is set and there are attributed posts
     if (startDate && attributedPosts > 0) {
         const noteHTML = `
             <div class="attribution-note">
@@ -739,23 +865,18 @@ function renderTopPosts(posts, startDate) {
     }
 
     postsTableBody.innerHTML = topTen.map((post, i) => {
-        // Extract activity ID from URL for display
         const activityMatch = post.url.match(/activity:(\d+)/);
         const activityId = activityMatch ? activityMatch[1] : 'N/A';
-        const shortId = activityId.slice(-8); // Last 8 digits
+        const shortId = activityId.slice(-8);
 
-        // Calculate days ago
         const daysAgo = post.date ? Math.floor((today - post.date) / (1000 * 60 * 60 * 24)) : null;
         const daysAgoText = daysAgo !== null ? (daysAgo === 0 ? 'Today' : daysAgo === 1 ? '1 day ago' : `${daysAgo} days ago`) : '-';
 
-        // Calculate engagement rate
         const engRate = post.impressions > 0 ? ((post.engagements / post.impressions) * 100).toFixed(2) : '0.00';
 
-        // Format full numbers
         const fullImpressions = post.impressions.toLocaleString();
         const fullEngagements = post.engagements.toLocaleString();
 
-        // Check if post is attributed to EcomGhosts
         const isAttributed = startDate && post.date && post.date >= startDate;
         const rowClass = isAttributed ? 'row-highlighted' : '';
         const badge = isAttributed ? `
@@ -792,7 +913,8 @@ function renderTopPosts(posts, startDate) {
                     <td>${fullImpressions}</td>
                     <td><span class="eng-rate">${engRate}%</span></td>
                 </tr>
-            `}).join('');
+            `;
+    }).join('');
 }
 
 function renderDemographics(demographics) {
@@ -804,7 +926,6 @@ function renderDemographics(demographics) {
     const canvas = document.getElementById('demographicsChart');
     if (!container || !canvas) return;
 
-    // Clear previous state and re-add canvas
     container.innerHTML = '<canvas id="demographicsChart"></canvas>';
     const newCanvas = document.getElementById('demographicsChart');
 
@@ -857,6 +978,242 @@ function renderDemographics(demographics) {
             }
         }
     });
+}
+
+// ============================================================================
+// USER MANAGEMENT (ADMIN ONLY)
+// ============================================================================
+
+function openUserManagement() {
+    if (!isAdmin()) return;
+
+    const userMgmtHTML = `
+        <div id="userMgmtModal" class="modal">
+            <div class="modal-content" style="max-width: 800px;">
+                <div class="modal-header">
+                    <h3>👥 User Management</h3>
+                    <button class="close-modal" onclick="closeUserManagement()">×</button>
+                </div>
+                <button class="btn" onclick="openAddUserForm()" style="margin-bottom: 16px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                    </svg>
+                    Add New User
+                </button>
+                <table class="users-table">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Role</th>
+                            <th>Client Access</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', userMgmtHTML);
+    renderUsersTable();
+}
+
+function closeUserManagement() {
+    const modal = document.getElementById('userMgmtModal');
+    if (modal) modal.remove();
+}
+
+function renderUsersTable() {
+    const tbody = document.getElementById('usersTableBody');
+    if (!tbody) return;
+
+    tbody.innerHTML = Object.entries(users).map(([username, user]) => {
+        const roleClass = user.role === 'admin' ? 'badge-admin' : 'badge-user';
+        const clientsText = user.role === 'admin' ? 'All Clients' : (user.clients && user.clients.length > 0 ? user.clients.join(', ') : 'No clients assigned');
+
+        return `
+            <tr>
+                <td><strong>${username}</strong></td>
+                <td><span class="badge ${roleClass}">${user.role}</span></td>
+                <td style="font-size: 12px; color: #888;">${clientsText}</td>
+                <td>
+                    <button class="btn btn-small btn-secondary" onclick='editUser("${username}")'>Edit</button>
+                    ${username !== 'admin' ? `<button class="btn btn-small btn-danger" onclick='deleteUser("${username}")'>Delete</button>` : ''}
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function openAddUserForm() {
+    const formHTML = `
+        <div id="userFormModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Add New User</h3>
+                    <button class="close-modal" onclick="closeUserForm()">×</button>
+                </div>
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="newUsername" placeholder="john@example.com">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="newPassword" placeholder="Enter password">
+                </div>
+                <div class="form-group">
+                    <label>Role</label>
+                    <select id="newRole" onchange="toggleClientSelection()">
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <div class="form-group" id="clientSelectionGroup">
+                    <label>Assign Clients</label>
+                    <div class="client-checklist" id="clientChecklist"></div>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" onclick="closeUserForm()">Cancel</button>
+                    <button class="btn" onclick="saveNewUser()">Create User</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', formHTML);
+    renderClientChecklist();
+}
+
+function editUser(username) {
+    const user = users[username];
+    if (!user) return;
+
+    const formHTML = `
+        <div id="userFormModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Edit User: ${username}</h3>
+                    <button class="close-modal" onclick="closeUserForm()">×</button>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="editPassword" placeholder="Enter new password (leave blank to keep current)">
+                </div>
+                <div class="form-group">
+                    <label>Role</label>
+                    <select id="editRole" onchange="toggleClientSelection()">
+                        <option value="user" ${user.role === 'user' ? 'selected' : ''}>User</option>
+                        <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option>
+                    </select>
+                </div>
+                <div class="form-group" id="clientSelectionGroup" style="${user.role === 'admin' ? 'display:none;' : ''}">
+                    <label>Assign Clients</label>
+                    <div class="client-checklist" id="clientChecklist"></div>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" onclick="closeUserForm()">Cancel</button>
+                    <button class="btn" onclick='saveEditUser("${username}")'>Save Changes</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', formHTML);
+    renderClientChecklist(user.clients || []);
+}
+
+function renderClientChecklist(selectedClients = []) {
+    const checklist = document.getElementById('clientChecklist');
+    if (!checklist) return;
+
+    const allClients = Object.keys(clients).sort();
+
+    if (allClients.length === 0) {
+        checklist.innerHTML = '<div style="color:#888;padding:8px;">No clients available</div>';
+        return;
+    }
+
+    checklist.innerHTML = allClients.map(name => {
+        const checked = selectedClients.includes(name) ? 'checked' : '';
+        return `
+            <label>
+                <input type="checkbox" value="${name}" ${checked}>
+                ${name}
+            </label>
+        `;
+    }).join('');
+}
+
+function toggleClientSelection() {
+    const roleSelect = document.getElementById('newRole') || document.getElementById('editRole');
+    const clientGroup = document.getElementById('clientSelectionGroup');
+
+    if (roleSelect && clientGroup) {
+        clientGroup.style.display = roleSelect.value === 'admin' ? 'none' : 'block';
+    }
+}
+
+function saveNewUser() {
+    const username = document.getElementById('newUsername').value.trim();
+    const password = document.getElementById('newPassword').value;
+    const role = document.getElementById('newRole').value;
+
+    if (!username || !password) {
+        alert('Username and password are required');
+        return;
+    }
+
+    if (users[username]) {
+        alert('User already exists');
+        return;
+    }
+
+    const selectedClients = role === 'admin' ? [] : Array.from(document.querySelectorAll('#clientChecklist input:checked')).map(cb => cb.value);
+
+    users[username] = {
+        password: password,
+        role: role,
+        clients: selectedClients
+    };
+
+    localStorage.setItem('ecomghosts_users', JSON.stringify(users));
+    closeUserForm();
+    renderUsersTable();
+}
+
+function saveEditUser(username) {
+    const password = document.getElementById('editPassword').value;
+    const role = document.getElementById('editRole').value;
+
+    if (password) {
+        users[username].password = password;
+    }
+
+    users[username].role = role;
+
+    if (role === 'admin') {
+        users[username].clients = [];
+    } else {
+        users[username].clients = Array.from(document.querySelectorAll('#clientChecklist input:checked')).map(cb => cb.value);
+    }
+
+    localStorage.setItem('ecomghosts_users', JSON.stringify(users));
+    closeUserForm();
+    renderUsersTable();
+}
+
+function deleteUser(username) {
+    if (confirm(`Delete user "${username}"?`)) {
+        delete users[username];
+        localStorage.setItem('ecomghosts_users', JSON.stringify(users));
+        renderUsersTable();
+    }
+}
+
+function closeUserForm() {
+    const modal = document.getElementById('userFormModal');
+    if (modal) modal.remove();
 }
 
 // Init on load

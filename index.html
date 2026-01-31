@@ -14,6 +14,23 @@
         <div class="spinner"></div>
     </div>
 
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-screen">
+        <div class="login-box">
+            <svg class="ghost-icon-lg" viewBox="0 0 24 24" fill="#f97316">
+                <path d="M12 2C7.58 2 4 5.58 4 10v10.5c0 .83.67 1.5 1.5 1.5s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.5-.67 1.5-1.5V10c0-4.42-3.58-8-8-8zm-2 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
+            </svg>
+            <h1>GhostAnalytics</h1>
+            <p>Sign in to continue</p>
+            <form id="loginForm">
+                <input type="text" id="loginUsername" placeholder="Username" required autocomplete="username">
+                <input type="password" id="loginPassword" placeholder="Password" required autocomplete="current-password">
+                <div id="loginError" class="login-error hidden"></div>
+                <button type="submit" class="btn">Sign In</button>
+            </form>
+        </div>
+    </div>
+
     <!-- Background ghost decorations -->
     <svg class="ghost-bg ghost-bg-1" viewBox="0 0 24 24" fill="#f97316">
         <path d="M12 2C7.58 2 4 5.58 4 10v10.5c0 .83.67 1.5 1.5 1.5s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.5-.67 1.5-1.5V10c0-4.42-3.58-8-8-8zm-2 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
