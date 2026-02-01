@@ -1473,13 +1473,10 @@ function openAddUserForm() {
                     <input type="email" id="newEmail" placeholder="user@example.com">
                 </div>
                 <div class="form-group">
-                    <label>Password</label>
-                    <input type="password" id="newPassword" placeholder="Enter password">
-                </div>
-                <div class="form-group">
                     <label>Full Name</label>
                     <input type="text" id="newFullName" placeholder="John Doe">
                 </div>
+                <p style="color: #666; font-size: 14px; margin: 10px 0;">User will receive an email to set their own password.</p>
                 <div class="form-group">
                     <label>Role</label>
                     <select id="newRole">
@@ -1530,21 +1527,23 @@ function editUser(userId, email) {
 
 async function saveNewUser() {
     const email = document.getElementById('newEmail').value.trim();
-    const password = document.getElementById('newPassword').value;
     const fullName = document.getElementById('newFullName').value.trim();
     const role = document.getElementById('newRole').value;
 
-    if (!email || !password || !fullName) {
-        alert('Email, password, and full name are required');
+    if (!email || !fullName) {
+        alert('Email and full name are required');
         return;
     }
 
+    // Auto-generate a random temporary password
+    const tempPassword = Math.random().toString(36).slice(-12) + Math.random().toString(36).slice(-12);
+
     try {
-        const result = await signUp(email, password, fullName, role);
+        const result = await signUp(email, tempPassword, fullName, role, true);
         if (result.success) {
             closeUserForm();
             renderUsersTable();
-            alert('User created successfully');
+            alert('User created successfully! An invitation email has been sent to ' + email);
         } else {
             alert('Error creating user: ' + result.error);
         }

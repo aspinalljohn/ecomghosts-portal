@@ -13,7 +13,7 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_
 // AUTHENTICATION HELPERS
 // ============================================================================
 
-async function signUp(email, password, fullName, role = 'user') {
+async function signUp(email, password, fullName, role = 'user', sendInviteEmail = false) {
     try {
         // Create auth user
         const { data: authData, error: authError } = await supabaseClient.auth.signUp({
@@ -34,6 +34,18 @@ async function signUp(email, password, fullName, role = 'user') {
             }]);
 
         if (userError) throw userError;
+
+        // Send password reset email if requested (for admin-created users)
+        if (sendInviteEmail) {
+            const { error: resetError } = await supabaseClient.auth.resetPasswordForEmail(email, {
+                redirectTo: `${window.location.origin}/index.html`,
+            });
+
+            if (resetError) {
+                console.warn('Could not send invite email:', resetError);
+                // Don't fail the signup if email fails
+            }
+        }
 
         return { success: true, user: authData.user };
     } catch (error) {
