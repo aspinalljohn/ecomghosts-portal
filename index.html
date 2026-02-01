@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GhostAnalytics by EcomGhosts</title>
+    <meta name="description" content="LinkedIn analytics dashboard for EcomGhosts clients. Track engagement, impressions, followers, and post performance.">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👻</text></svg>">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="loader" class="hidden">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-screen">
+        <div class="login-box">
+            <svg class="ghost-icon-lg" viewBox="0 0 24 24" fill="#f97316">
+                <path d="M12 2C7.58 2 4 5.58 4 10v10.5c0 .83.67 1.5 1.5 1.5s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.5-.67 1.5-1.5V10c0-4.42-3.58-8-8-8zm-2 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
+            </svg>
+            <h1>GhostAnalytics</h1>
+            <p>Sign in to continue</p>
+            <form id="loginForm">
+                <input type="text" id="loginUsername" placeholder="Username" required autocomplete="username">
+                <input type="password" id="loginPassword" placeholder="Password" required autocomplete="current-password">
+                <div id="loginError" class="login-error hidden"></div>
+                <button type="submit" class="btn">Sign In</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Background ghost decorations -->
+    <svg class="ghost-bg ghost-bg-1" viewBox="0 0 24 24" fill="#f97316">
+        <path d="M12 2C7.58 2 4 5.58 4 10v10.5c0 .83.67 1.5 1.5 1.5s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.5-.67 1.5-1.5V10c0-4.42-3.58-8-8-8zm-2 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
+    </svg>
+    <svg class="ghost-bg ghost-bg-2" viewBox="0 0 24 24" fill="#f97316">
+        <path d="M12 2C7.58 2 4 5.58 4 10v10.5c0 .83.67 1.5 1.5 1.5s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.5-.67 1.5-1.5V10c0-4.42-3.58-8-8-8zm-2 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
+    </svg>
+    <svg class="ghost-bg ghost-bg-3" viewBox="0 0 24 24" fill="#f97316">
+        <path d="M12 2C7.58 2 4 5.58 4 10v10.5c0 .83.67 1.5 1.5 1.5s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.5-.67 1.5-1.5V10c0-4.42-3.58-8-8-8zm-2 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
+    </svg>
+
+    <div class="container" style="position: relative; z-index: 1;">
+        <div class="header">
+            <div class="logo">
+                <span class="logo-text"><strong>Ghost</strong>Analytics</span>
+            </div>
+            <div class="controls">
+                <div class="control-group">
+                    <label>Select Client</label>
+                    <select id="clientSelect">
+                        <option value="">-- Select or upload new --</option>
+                    </select>
+                </div>
+                <div class="control-group" id="startDateGroup" style="display:none;">
+                    <label id="startDateLabel">Client Start Date</label>
+                    <input type="date" id="startDate">
+                </div>
+                <div class="control-group" style="align-self: flex-end;">
+                    <input type="file" id="fileInput" accept=".xlsx,.xls">
+                    <button class="btn" onclick="document.getElementById('fileInput').click()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/>
+                        </svg>
+                        Upload LinkedIn Data
+                    </button>
+                </div>
+                <div class="control-group" id="deleteGroup" style="display:none; align-self: flex-end;">
+                    <button class="btn btn-danger" onclick="deleteClient()">Delete Client</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="emptyState" class="empty-state">
+            <svg class="ghost-icon-lg" viewBox="0 0 24 24" fill="#f97316">
+                <path d="M12 2C7.58 2 4 5.58 4 10v10.5c0 .83.67 1.5 1.5 1.5s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.5-.67 1.5-1.5V10c0-4.42-3.58-8-8-8zm-2 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
+            </svg>
+            <h2>No Clients Assigned</h2>
+            <p>You don't have any clients assigned to your account yet. Please contact your administrator.</p>
+        </div>
+
+        <div id="dashboard" class="hidden">
+            <div class="summary-cards" id="summaryCards"></div>
+
+            <div class="section-divider">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="#f97316">
+                    <path d="M12 2C7.58 2 4 5.58 4 10v10.5c0 .83.67 1.5 1.5 1.5s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.5-.67 1.5-1.5V10c0-4.42-3.58-8-8-8zm-2 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
+                </svg>
+            </div>
+
+                        <div class="charts-grid" id="chartsGrid"></div>
+
+            
+
+                        <div class="section-divider">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="#f97316">
+                    <path d="M12 2C7.58 2 4 5.58 4 10v10.5c0 .83.67 1.5 1.5 1.5s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.5-.67 1.5-1.5V10c0-4.42-3.58-8-8-8zm-2 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
+                </svg>
+            </div>
+
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3 class="chart-title">
+                        👥 Audience Job Titles
+                    </h3>
+                </div>
+                <div class="chart-container" id="demographicsChartContainer" style="height: 350px;">
+                    <canvas id="demographicsChart"></canvas>
+                </div>
+                <div class="demographics-insight">
+                    <strong>💡 Why this matters: Decision-Maker Density</strong><br>
+                    This chart measures the commercial authority of your audience. While 'Impressions' track volume, these Job Titles track <em>value</em>. A high concentration of Founders, C-Suite Executives, and Directors indicates your content is bypassing gatekeepers and reaching the 'Buying Committee'—the individuals with actual budget authority. This is your primary indicator of B2B lead quality versus simple brand awareness.
+                </div>
+            </div>
+
+            <div class="section-divider">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="#f97316">
+                    <path d="M12 2C7.58 2 4 5.58 4 10v10.5c0 .83.67 1.5 1.5 1.5s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.5-.67 1.5-1.5V10c0-4.42-3.58-8-8-8zm-2 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
+                </svg>
+            </div>
+
+            <div class="top-posts" id="topPostsSection">
+                <h2>
+                    <svg class="ghost-icon-sm" viewBox="0 0 24 24" fill="#f97316">
+                        <path d="M12 2C7.58 2 4 5.58 4 10v10.5c0 .83.67 1.5 1.5 1.5s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.17-.41 1.5-1c.33.59.92 1 1.5 1s1.5-.67 1.5-1.5V10c0-4.42-3.58-8-8-8zm-2 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm4 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
+                    </svg>
+                    Top Performing Posts
+                </h2>
+                <table class="posts-table">
+                    <thead>
+                        <tr>
+                            <th>Post</th>
+                            <th>Preview</th>
+                            <th>Date</th>
+                            <th>Age</th>
+                            <th>Engagements</th>
+                            <th>Impressions</th>
+                            <th>Eng. Rate</th>
+                        </tr>
+                    </thead>
+                    <tbody id="postsTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
