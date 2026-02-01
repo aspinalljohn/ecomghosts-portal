@@ -207,8 +207,10 @@ function updateHeader() {
     // Remove existing auth controls
     const existingLogout = document.getElementById('logoutBtn');
     const existingUserMgmt = document.getElementById('userMgmtBtn');
+    const existingHome = document.getElementById('homeBtn');
     if (existingLogout) existingLogout.remove();
     if (existingUserMgmt) existingUserMgmt.remove();
+    if (existingHome) existingHome.remove();
 
     // Hide/show client select and related controls based on role
     // Find control groups by checking their children instead of :has() selector
@@ -229,9 +231,27 @@ function updateHeader() {
         if (clientSelectGroup) clientSelectGroup.style.display = 'none';
         if (uploadGroup) uploadGroup.style.display = 'none';
     } else {
-        // Show for admin
-        if (clientSelectGroup) clientSelectGroup.style.display = 'flex';
-        if (uploadGroup) uploadGroup.style.display = 'flex';
+        // Admin: Hide client dropdown and start date (use Mission Control instead)
+        if (clientSelectGroup) clientSelectGroup.style.display = 'none';
+        if (startDateGroupEl) startDateGroupEl.style.display = 'none';
+        if (uploadGroup) uploadGroup.style.display = 'none';
+    }
+
+    // Add home button (admin only)
+    if (isAdmin()) {
+        const homeGroup = document.createElement('div');
+        homeGroup.className = 'control-group';
+        homeGroup.style.alignSelf = 'flex-end';
+        homeGroup.id = 'homeBtn';
+        homeGroup.innerHTML = `
+            <button class="btn" onclick="goToMissionControl()" style="background: #10b981;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+                </svg>
+                Mission Control
+            </button>
+        `;
+        controls.appendChild(homeGroup);
     }
 
     // Add user management button (admin only)
@@ -1102,6 +1122,20 @@ function renderDemographics(demographics) {
 // ============================================================================
 // ADMIN MISSION CONTROL
 // ============================================================================
+
+function goToMissionControl() {
+    if (!isAdmin()) return;
+
+    // Clear current client selection
+    currentClient = null;
+
+    // Hide start date and delete controls
+    if (startDateGroup) startDateGroup.style.display = 'none';
+    if (deleteGroup) deleteGroup.style.display = 'none';
+
+    // Render Mission Control
+    renderAdminMissionControl();
+}
 
 function renderAdminMissionControl() {
     console.log('renderAdminMissionControl called');
