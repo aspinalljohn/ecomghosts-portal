@@ -91,6 +91,7 @@ function getAccessibleClients() {
 let clients = JSON.parse(localStorage.getItem('ecomghosts_clients') || '{}');
 let charts = {};
 let currentClient = null;
+let originalDashboardHTML = null;
 
 // DOM elements (will be initialized in init())
 let clientSelect, startDateInput, fileInput, emptyState, dashboard, summaryCards, chartsGrid, postsTableBody, startDateGroup, deleteGroup, loader;
@@ -136,6 +137,11 @@ function init() {
     startDateGroup = document.getElementById('startDateGroup');
     deleteGroup = document.getElementById('deleteGroup');
     loader = document.getElementById('loader');
+
+    // Save original dashboard HTML structure
+    if (dashboard && !originalDashboardHTML) {
+        originalDashboardHTML = dashboard.innerHTML;
+    }
 
     // If not logged in, show login screen
     if (!currentUser) {
@@ -289,10 +295,26 @@ function updateClientDropdown() {
 }
 
 function selectClient(name) {
+    console.log('selectClient called with:', name);
+    console.log('Client exists:', !!clients[name]);
+    console.log('Has access:', hasClientAccess(name));
+
     if (!hasClientAccess(name)) {
         alert('You do not have access to this client');
         return;
     }
+
+    // Restore original dashboard HTML structure if it was replaced by Mission Control
+    if (originalDashboardHTML && dashboard) {
+        console.log('Restoring original dashboard HTML...');
+        dashboard.innerHTML = originalDashboardHTML;
+
+        // Re-query DOM elements after restoring HTML
+        summaryCards = document.getElementById('summaryCards');
+        chartsGrid = document.getElementById('chartsGrid');
+        postsTableBody = document.getElementById('postsTableBody');
+    }
+
     currentClient = name;
     clientSelect.value = name;
     startDateInput.value = clients[name].startDate || '';
@@ -321,8 +343,10 @@ function selectClient(name) {
     // Only show delete button for admin
     deleteGroup.style.display = isAdmin() ? 'flex' : 'none';
 
+    console.log('Calling showDashboard and renderDashboard...');
     showDashboard();
     renderDashboard();
+    console.log('Dashboard should now be visible');
 }
 
 function deleteClient() {
@@ -1215,9 +1239,14 @@ function renderAdminMissionControl() {
     emptyState.classList.add('hidden');
 
     // Add event listeners for View Dashboard buttons
-    document.querySelectorAll('[data-action="view-client"]').forEach(btn => {
-        btn.addEventListener('click', () => {
+    const viewButtons = dashboard.querySelectorAll('[data-action="view-client"]');
+    console.log('Found view buttons:', viewButtons.length);
+
+    viewButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
             const clientName = btn.getAttribute('data-client-name');
+            console.log('View Dashboard clicked for:', clientName);
             if (clientName) {
                 selectClient(clientName);
             }
