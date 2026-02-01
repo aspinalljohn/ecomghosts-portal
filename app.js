@@ -1,53 +1,41 @@
 // ============================================================================
-// AUTHENTICATION SYSTEM
+// AUTHENTICATION SYSTEM (SUPABASE)
 // ============================================================================
 
-let users = JSON.parse(localStorage.getItem('ecomghosts_users') || '{}');
 let currentUser = null;
-
-// Initialize default admin if no users exist
-if (Object.keys(users).length === 0) {
-    users = {
-        'admin': {
-            password: 'admin123',
-            role: 'admin',
-            clients: [] // Empty means access to all
-        }
-    };
-    localStorage.setItem('ecomghosts_users', JSON.stringify(users));
-}
-
-// Check for existing session
-const sessionUser = sessionStorage.getItem('ecomghosts_session');
-if (sessionUser && users[sessionUser]) {
-    currentUser = sessionUser;
-}
+let currentUserData = null;
 
 // DOM elements - Auth (will be initialized on load)
-let loginScreen, loginForm, loginUsername, loginPassword, loginError;
+let loginScreen, loginForm, loginEmail, loginPassword, loginError;
 
 // Setup authentication after DOM is ready
 function setupAuth() {
     loginScreen = document.getElementById('loginScreen');
     loginForm = document.getElementById('loginForm');
-    loginUsername = document.getElementById('loginUsername');
+    loginEmail = document.getElementById('loginEmail');
     loginPassword = document.getElementById('loginPassword');
     loginError = document.getElementById('loginError');
 
     // Login handler
     if (loginForm) {
-        loginForm.addEventListener('submit', (e) => {
+        loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const username = loginUsername.value.trim();
+            const email = loginEmail.value.trim();
             const password = loginPassword.value;
 
-            if (users[username] && users[username].password === password) {
-                currentUser = username;
-                sessionStorage.setItem('ecomghosts_session', username);
-                loginScreen.classList.add('hidden');
-                init();
-            } else {
-                loginError.textContent = 'Invalid username or password';
+            try {
+                const result = await signIn(email, password);
+                if (result.success) {
+                    currentUser = result.user;
+                    currentUserData = result.userData;
+                    loginScreen.classList.add('hidden');
+                    await init();
+                } else {
+                    loginError.textContent = result.error || 'Invalid email or password';
+                    loginError.classList.remove('hidden');
+                }
+            } catch (err) {
+                loginError.textContent = 'Login failed: ' + err.message;
                 loginError.classList.remove('hidden');
             }
         });
@@ -55,42 +43,69 @@ function setupAuth() {
 }
 
 // Logout function
-function logout() {
+async function logout() {
     if (confirm('Are you sure you want to log out?')) {
-        currentUser = null;
-        sessionStorage.removeItem('ecomghosts_session');
-        location.reload();
+        try {
+            await signOut();
+            currentUser = null;
+            currentUserData = null;
+            location.reload();
+        } catch (err) {
+            alert('Logout failed: ' + err.message);
+        }
     }
 }
 
 // Check if current user is admin
 function isAdmin() {
-    return currentUser && users[currentUser]?.role === 'admin';
+    return currentUserData && currentUserData.role === 'admin';
 }
 
 // Check if user has access to a client
-function hasClientAccess(clientName) {
+async function hasClientAccess(clientId) {
     if (!currentUser) return false;
-    const user = users[currentUser];
-    if (user.role === 'admin') return true; // Admin sees all
-    return user.clients && user.clients.includes(clientName);
+    if (isAdmin()) return true; // Admin sees all
+
+    // Check user_client_access table
+    try {
+        const result = await getUserClients(currentUser.id);
+        if (result.success) {
+            return result.clients.some(c => c.id === clientId);
+        }
+    } catch (err) {
+        console.error('Error checking client access:', err);
+    }
+    return false;
 }
 
 // Get accessible clients for current user
-function getAccessibleClients() {
+async function getAccessibleClients() {
     if (!currentUser) return [];
-    const user = users[currentUser];
-    if (user.role === 'admin') return Object.keys(clients); // Admin sees all
-    return Object.keys(clients).filter(name => user.clients && user.clients.includes(name));
+
+    try {
+        if (isAdmin()) {
+            // Admin sees all clients
+            const result = await getAllClients();
+            return result.success ? result.clients : [];
+        } else {
+            // Regular user sees only assigned clients
+            const result = await getUserClients(currentUser.id);
+            return result.success ? result.clients : [];
+        }
+    } catch (err) {
+        console.error('Error getting accessible clients:', err);
+        return [];
+    }
 }
 
 // ============================================================================
 // STATE & ORIGINAL FUNCTIONALITY
 // ============================================================================
 
-let clients = JSON.parse(localStorage.getItem('ecomghosts_clients') || '{}');
+let clients = {}; // clientId -> client data
 let charts = {};
 let currentClient = null;
+let currentClientId = null;
 let originalDashboardHTML = null;
 
 // DOM elements (will be initialized in init())
@@ -124,7 +139,7 @@ const METRIC_INSIGHTS = {
 };
 
 // Initialize
-function init() {
+async function init() {
     // Initialize DOM elements
     clientSelect = document.getElementById('clientSelect');
     startDateInput = document.getElementById('startDate');
@@ -145,54 +160,131 @@ function init() {
 
     // If not logged in, show login screen
     if (!currentUser) {
-        const loginScreen = document.getElementById('loginScreen');
-        if (loginScreen) loginScreen.classList.remove('hidden');
+        const loginScreenEl = document.getElementById('loginScreen');
+        if (loginScreenEl) loginScreenEl.classList.remove('hidden');
         return;
     }
 
-    Object.values(clients).forEach(hydrateClientData);
+    // Load all clients
+    try {
+        const clientsResult = await getAllClients();
+        if (clientsResult.success) {
+            for (const client of clientsResult.clients) {
+                clients[client.id] = {
+                    id: client.id,
+                    name: client.name,
+                    startDate: client.start_date || '',
+                    uploadedAt: client.created_at || '',
+                    engagement: [],
+                    followers: [],
+                    topPosts: [],
+                    demographics: [],
+                    totalFollowers: 0,
+                    discovery: {}
+                };
+
+                // Load analytics data for each client
+                await loadClientData(client.id);
+            }
+        }
+    } catch (err) {
+        console.error('Error loading clients:', err);
+    }
+
     updateClientDropdown();
     updateHeader();
 
-    clientSelect.addEventListener('change', () => {
-        const name = clientSelect.value;
-        if (name && clients[name] && hasClientAccess(name)) {
-            selectClient(name);
-        } else {
-            currentClient = null;
-            // Admin sees mission control, users see empty state
-            if (isAdmin()) {
-                renderAdminMissionControl();
+    if (clientSelect) {
+        clientSelect.addEventListener('change', async () => {
+            const clientId = clientSelect.value;
+            if (clientId && clients[clientId] && (await hasClientAccess(clientId))) {
+                selectClient(clientId);
             } else {
-                showEmptyState();
+                currentClient = null;
+                currentClientId = null;
+                // Admin sees mission control, users see empty state
+                if (isAdmin()) {
+                    renderAdminMissionControl();
+                } else {
+                    showEmptyState();
+                }
             }
-        }
-    });
+        });
+    }
 
-    startDateInput.addEventListener('change', () => {
-        if (currentClient && hasClientAccess(currentClient)) {
-            clients[currentClient].startDate = startDateInput.value;
-            saveClients();
-            renderDashboard();
-        }
-    });
+    if (startDateInput) {
+        startDateInput.addEventListener('change', async () => {
+            if (currentClientId && clients[currentClientId] && (await hasClientAccess(currentClientId))) {
+                clients[currentClientId].startDate = startDateInput.value;
+                await updateClient(currentClientId, { start_date: startDateInput.value });
+                renderDashboard();
+            }
+        });
+    }
 
-    fileInput.addEventListener('change', handleFileUpload);
+    if (fileInput) {
+        fileInput.addEventListener('change', handleFileUpload);
+    }
 
     // Auto-select first client for non-admin users
     if (!isAdmin()) {
         console.log('User is not admin, checking clients...');
-        const accessibleClients = getAccessibleClients();
+        const accessibleClients = await getAccessibleClients();
         if (accessibleClients.length > 0) {
-            selectClient(accessibleClients[0]);
+            selectClient(accessibleClients[0].id);
         } else {
             showEmptyState();
         }
     } else {
         // Admin: Show mission control when no client selected
-        console.log('User is admin, currentClient:', currentClient);
-        console.log('Rendering mission control...');
+        console.log('User is admin, showing mission control...');
         renderAdminMissionControl();
+    }
+}
+
+// Load client data from Supabase
+async function loadClientData(clientId) {
+    try {
+        // Load engagement data
+        const engResult = await getEngagementData(clientId);
+        if (engResult.success) {
+            clients[clientId].engagement = engResult.data.map(d => ({
+                date: new Date(d.date),
+                impressions: d.impressions,
+                engagements: d.engagements
+            }));
+        }
+
+        // Load followers data
+        const folResult = await getFollowersData(clientId);
+        if (folResult.success) {
+            clients[clientId].followers = folResult.data.map(d => ({
+                date: new Date(d.date),
+                newFollowers: d.new_followers
+            }));
+        }
+
+        // Load top posts
+        const postsResult = await getTopPosts(clientId);
+        if (postsResult.success) {
+            clients[clientId].topPosts = postsResult.data.map(p => ({
+                url: p.url,
+                date: p.post_date ? new Date(p.post_date) : null,
+                engagements: p.engagements,
+                impressions: p.impressions
+            }));
+        }
+
+        // Load demographics
+        const demoResult = await getDemographicsData(clientId);
+        if (demoResult.success) {
+            clients[clientId].demographics = demoResult.data.map(d => ({
+                label: d.job_title,
+                percentage: d.percentage
+            }));
+        }
+    } catch (err) {
+        console.error('Error loading client data:', err);
     }
 }
 
@@ -213,7 +305,6 @@ function updateHeader() {
     if (existingHome) existingHome.remove();
 
     // Hide/show client select and related controls based on role
-    // Find control groups by checking their children instead of :has() selector
     const controlGroups = document.querySelectorAll('.controls .control-group');
     let clientSelectGroup = null;
     let uploadGroup = null;
@@ -281,45 +372,31 @@ function updateHeader() {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
             </svg>
-            Logout (${currentUser})
+            Logout (${currentUserData?.email || 'User'})
         </button>
     `;
     controls.appendChild(logoutGroup);
 }
 
-function hydrateClientData(client) {
-    ['engagement', 'followers', 'topPosts'].forEach(key => {
-        if (client[key]) {
-            client[key].forEach(item => {
-                if (item.date) {
-                    item.date = new Date(item.date);
-                }
-            });
-        }
-    });
-}
-
-function saveClients() {
-    localStorage.setItem('ecomghosts_clients', JSON.stringify(clients));
-}
-
 function updateClientDropdown() {
-    const accessibleClients = getAccessibleClients();
+    if (!clientSelect) return;
+
     clientSelect.innerHTML = '<option value="">-- Select or upload new --</option>';
-    accessibleClients.sort().forEach(name => {
+    const sortedClients = Object.values(clients).sort((a, b) => a.name.localeCompare(b.name));
+    sortedClients.forEach(client => {
         const opt = document.createElement('option');
-        opt.value = name;
-        opt.textContent = name;
+        opt.value = client.id;
+        opt.textContent = client.name;
         clientSelect.appendChild(opt);
     });
 }
 
-function selectClient(name) {
-    console.log('selectClient called with:', name);
-    console.log('Client exists:', !!clients[name]);
-    console.log('Has access:', hasClientAccess(name));
+async function selectClient(clientId) {
+    console.log('selectClient called with:', clientId);
+    console.log('Client exists:', !!clients[clientId]);
+    console.log('Has access:', await hasClientAccess(clientId));
 
-    if (!hasClientAccess(name)) {
+    if (!(await hasClientAccess(clientId))) {
         alert('You do not have access to this client');
         return;
     }
@@ -335,9 +412,10 @@ function selectClient(name) {
         postsTableBody = document.getElementById('postsTableBody');
     }
 
-    currentClient = name;
-    clientSelect.value = name;
-    startDateInput.value = clients[name].startDate || '';
+    currentClientId = clientId;
+    currentClient = clients[clientId].name;
+    clientSelect.value = clientId;
+    startDateInput.value = clients[clientId].startDate || '';
 
     // Show start date for both admin and users
     startDateGroup.style.display = 'flex';
@@ -369,24 +447,21 @@ function selectClient(name) {
     console.log('Dashboard should now be visible');
 }
 
-function deleteClient() {
-    if (!currentClient || !isAdmin()) return;
-    if (confirm(`Delete "${currentClient}" and all their data?`)) {
-        // Also remove from user assignments
-        Object.values(users).forEach(user => {
-            if (user.clients && user.clients.includes(currentClient)) {
-                user.clients = user.clients.filter(c => c !== currentClient);
-            }
-        });
-        localStorage.setItem('ecomghosts_users', JSON.stringify(users));
+async function deleteClient() {
+    if (!currentClientId || !isAdmin()) return;
+    if (confirm(`Delete "${clients[currentClientId]?.name}" and all their data?`)) {
+        try {
+            await deleteClient(currentClientId);
+            delete clients[currentClientId];
+            updateClientDropdown();
+            currentClient = null;
+            currentClientId = null;
 
-        delete clients[currentClient];
-        saveClients();
-        updateClientDropdown();
-        currentClient = null;
-
-        // Admin returns to mission control
-        renderAdminMissionControl();
+            // Admin returns to mission control
+            renderAdminMissionControl();
+        } catch (err) {
+            alert('Error deleting client: ' + err.message);
+        }
     }
 }
 
@@ -428,29 +503,50 @@ async function handleFileUpload(e) {
         }
 
         const name = clientName.trim();
-        clients[name] = {
-            ...data,
-            startDate: clients[name]?.startDate || '',
-            uploadedAt: new Date().toISOString()
+
+        // Create client in Supabase
+        const clientResult = await createClient(name, null);
+        if (!clientResult.success) {
+            throw new Error(clientResult.error);
+        }
+
+        const newClient = clientResult.client;
+        const clientId = newClient.id;
+
+        // Initialize client data
+        clients[clientId] = {
+            id: clientId,
+            name: name,
+            startDate: '',
+            uploadedAt: new Date().toISOString(),
+            engagement: data.engagement || [],
+            followers: data.followers || [],
+            topPosts: data.topPosts || [],
+            demographics: data.demographics || [],
+            totalFollowers: data.totalFollowers || 0,
+            discovery: data.discovery || {}
         };
-        saveClients();
+
+        // Save data to Supabase
+        await saveEngagementData(clientId, data.engagement || []);
+        await saveFollowersData(clientId, data.followers || []);
+        await saveTopPosts(clientId, data.topPosts || []);
+        await saveDemographicsData(clientId, data.demographics || []);
+
+        // Update client with total followers
+        if (data.totalFollowers) {
+            // Store total followers in a metadata field or discovery
+            clients[clientId].totalFollowers = data.totalFollowers;
+        }
 
         // If user is not admin, automatically assign this client to them
         if (!isAdmin()) {
-            if (!users[currentUser].clients) {
-                users[currentUser].clients = [];
-            }
-            if (!users[currentUser].clients.includes(name)) {
-                users[currentUser].clients.push(name);
-                localStorage.setItem('ecomghosts_users', JSON.stringify(users));
-            }
+            await assignClientToUser(currentUser.id, clientId);
         }
 
         updateClientDropdown();
-        selectClient(name);
+        selectClient(clientId);
 
-        // If admin uploaded, refresh mission control after closing client view
-        // (They can return to mission control via dropdown)
     } catch (err) {
         alert('Error parsing file: ' + err.message);
         console.error(err);
@@ -593,9 +689,9 @@ function excelDateToJS(val) {
 
 // Render dashboard
 function renderDashboard() {
-    if (!currentClient || !clients[currentClient]) return;
+    if (!currentClientId || !clients[currentClientId]) return;
 
-    const data = clients[currentClient];
+    const data = clients[currentClientId];
     const startDate = data.startDate ? new Date(data.startDate) : null;
 
     renderSummaryCards(data, startDate);
@@ -1128,6 +1224,7 @@ function goToMissionControl() {
 
     // Clear current client selection
     currentClient = null;
+    currentClientId = null;
 
     // Hide start date and delete controls
     if (startDateGroup) startDateGroup.style.display = 'none';
@@ -1137,13 +1234,21 @@ function goToMissionControl() {
     renderAdminMissionControl();
 }
 
-function renderAdminMissionControl() {
+async function renderAdminMissionControl() {
     console.log('renderAdminMissionControl called');
     console.log('emptyState element:', emptyState);
     console.log('dashboard element:', dashboard);
 
-    const allClients = Object.keys(clients).sort();
-    const allUsers = Object.entries(users);
+    const allClients = Object.values(clients).sort((a, b) => a.name.localeCompare(b.name));
+
+    // Get all users
+    let allUsers = [];
+    try {
+        const usersResult = await getAllUsers();
+        allUsers = usersResult.success ? usersResult.users : [];
+    } catch (err) {
+        console.error('Error loading users:', err);
+    }
 
     // Hide empty state and show dashboard
     emptyState.classList.add('hidden');
@@ -1171,8 +1276,8 @@ function renderAdminMissionControl() {
                 <h3>Total Users</h3>
                 <div class="value">${allUsers.length}</div>
                 <div style="color:#888;font-size:13px;">
-                    ${allUsers.filter(([u, data]) => data.role === 'admin').length} admin,
-                    ${allUsers.filter(([u, data]) => data.role === 'user').length} regular
+                    ${allUsers.filter(u => u.role === 'admin').length} admin,
+                    ${allUsers.filter(u => u.role === 'user').length} regular
                 </div>
             </div>
             <div class="summary-card">
@@ -1215,15 +1320,14 @@ function renderAdminMissionControl() {
                                 </tr>
                             </thead>
                             <tbody>
-                                ${allClients.map((clientName, idx) => {
-                                    const client = clients[clientName];
-                                    const uploadDate = client.uploadedAt ? new Date(client.uploadedAt).toLocaleDateString() : 'Unknown';
+                                ${allClients.map(client => {
+                                    const uploadDate = client.created_at ? new Date(client.created_at).toLocaleDateString() : 'Unknown';
                                     return `
                                         <tr>
-                                            <td><strong>${clientName}</strong></td>
+                                            <td><strong>${client.name}</strong></td>
                                             <td style="color:#888;font-size:13px;">${uploadDate}</td>
                                             <td>
-                                                <button class="btn btn-small" data-client-name="${clientName}" data-action="view-client">
+                                                <button class="btn btn-small" data-client-id="${client.id}" data-action="view-client">
                                                     View Dashboard
                                                 </button>
                                             </td>
@@ -1245,20 +1349,19 @@ function renderAdminMissionControl() {
                     <table class="posts-table">
                         <thead>
                             <tr>
-                                <th>Username</th>
+                                <th>Email</th>
                                 <th>Role</th>
                                 <th>Clients</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${allUsers.map(([username, user]) => {
+                            ${allUsers.map(user => {
                                 const roleClass = user.role === 'admin' ? 'badge-admin' : 'badge-user';
-                                const clientCount = user.role === 'admin' ? 'All' : (user.clients?.length || 0);
                                 return `
                                     <tr>
-                                        <td><strong>${username}</strong></td>
+                                        <td><strong>${user.email}</strong></td>
                                         <td><span class="badge ${roleClass}">${user.role}</span></td>
-                                        <td style="color:#888;font-size:13px;">${clientCount}</td>
+                                        <td style="color:#888;font-size:13px;">--</td>
                                     </tr>
                                 `;
                             }).join('')}
@@ -1279,10 +1382,10 @@ function renderAdminMissionControl() {
     viewButtons.forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.preventDefault();
-            const clientName = btn.getAttribute('data-client-name');
-            console.log('View Dashboard clicked for:', clientName);
-            if (clientName) {
-                selectClient(clientName);
+            const clientId = btn.getAttribute('data-client-id');
+            console.log('View Dashboard clicked for:', clientId);
+            if (clientId) {
+                selectClient(clientId);
             }
         });
     });
@@ -1311,9 +1414,8 @@ function openUserManagement() {
                 <table class="users-table">
                     <thead>
                         <tr>
-                            <th>Username</th>
+                            <th>Email</th>
                             <th>Role</th>
-                            <th>Client Access</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -1332,26 +1434,30 @@ function closeUserManagement() {
     if (modal) modal.remove();
 }
 
-function renderUsersTable() {
+async function renderUsersTable() {
     const tbody = document.getElementById('usersTableBody');
     if (!tbody) return;
 
-    tbody.innerHTML = Object.entries(users).map(([username, user]) => {
-        const roleClass = user.role === 'admin' ? 'badge-admin' : 'badge-user';
-        const clientsText = user.role === 'admin' ? 'All Clients' : (user.clients && user.clients.length > 0 ? user.clients.join(', ') : 'No clients assigned');
+    try {
+        const result = await getAllUsers();
+        const users = result.success ? result.users : [];
 
-        return `
-            <tr>
-                <td><strong>${username}</strong></td>
-                <td><span class="badge ${roleClass}">${user.role}</span></td>
-                <td style="font-size: 12px; color: #888;">${clientsText}</td>
-                <td>
-                    <button class="btn btn-small btn-secondary" onclick='editUser("${username}")'>Edit</button>
-                    ${username !== 'admin' ? `<button class="btn btn-small btn-danger" onclick='deleteUser("${username}")'>Delete</button>` : ''}
-                </td>
-            </tr>
-        `;
-    }).join('');
+        tbody.innerHTML = users.map(user => {
+            const roleClass = user.role === 'admin' ? 'badge-admin' : 'badge-user';
+            return `
+                <tr>
+                    <td><strong>${user.email}</strong></td>
+                    <td><span class="badge ${roleClass}">${user.role}</span></td>
+                    <td>
+                        <button class="btn btn-small btn-secondary" onclick='editUser("${user.id}","${user.email}")'>Edit</button>
+                        ${user.id !== currentUser.id ? `<button class="btn btn-small btn-danger" onclick='deleteUserAccount("${user.id}","${user.email}")'>Delete</button>` : ''}
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } catch (err) {
+        console.error('Error rendering users:', err);
+    }
 }
 
 function openAddUserForm() {
@@ -1363,23 +1469,23 @@ function openAddUserForm() {
                     <button class="close-modal" onclick="closeUserForm()">×</button>
                 </div>
                 <div class="form-group">
-                    <label>Username</label>
-                    <input type="text" id="newUsername" placeholder="john@example.com">
+                    <label>Email</label>
+                    <input type="email" id="newEmail" placeholder="user@example.com">
                 </div>
                 <div class="form-group">
                     <label>Password</label>
                     <input type="password" id="newPassword" placeholder="Enter password">
                 </div>
                 <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" id="newFullName" placeholder="John Doe">
+                </div>
+                <div class="form-group">
                     <label>Role</label>
-                    <select id="newRole" onchange="toggleClientSelection()">
+                    <select id="newRole">
                         <option value="user">User</option>
                         <option value="admin">Admin</option>
                     </select>
-                </div>
-                <div class="form-group" id="clientSelectionGroup">
-                    <label>Assign Clients</label>
-                    <div class="client-checklist" id="clientChecklist"></div>
                 </div>
                 <div class="modal-actions">
                     <button class="btn btn-secondary" onclick="closeUserForm()">Cancel</button>
@@ -1390,132 +1496,96 @@ function openAddUserForm() {
     `;
 
     document.body.insertAdjacentHTML('beforeend', formHTML);
-    renderClientChecklist();
 }
 
-function editUser(username) {
-    const user = users[username];
-    if (!user) return;
-
+function editUser(userId, email) {
     const formHTML = `
         <div id="userFormModal" class="modal">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h3>Edit User: ${username}</h3>
+                    <h3>Edit User: ${email}</h3>
                     <button class="close-modal" onclick="closeUserForm()">×</button>
                 </div>
                 <div class="form-group">
-                    <label>Password</label>
-                    <input type="password" id="editPassword" placeholder="Enter new password (leave blank to keep current)">
+                    <label>New Password (leave blank to keep current)</label>
+                    <input type="password" id="editPassword" placeholder="Enter new password">
                 </div>
                 <div class="form-group">
                     <label>Role</label>
-                    <select id="editRole" onchange="toggleClientSelection()">
-                        <option value="user" ${user.role === 'user' ? 'selected' : ''}>User</option>
-                        <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option>
+                    <select id="editRole">
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
                     </select>
-                </div>
-                <div class="form-group" id="clientSelectionGroup" style="${user.role === 'admin' ? 'display:none;' : ''}">
-                    <label>Assign Clients</label>
-                    <div class="client-checklist" id="clientChecklist"></div>
                 </div>
                 <div class="modal-actions">
                     <button class="btn btn-secondary" onclick="closeUserForm()">Cancel</button>
-                    <button class="btn" onclick='saveEditUser("${username}")'>Save Changes</button>
+                    <button class="btn" onclick='saveEditUser("${userId}","${email}")'>Save Changes</button>
                 </div>
             </div>
         </div>
     `;
 
     document.body.insertAdjacentHTML('beforeend', formHTML);
-    renderClientChecklist(user.clients || []);
 }
 
-function renderClientChecklist(selectedClients = []) {
-    const checklist = document.getElementById('clientChecklist');
-    if (!checklist) return;
-
-    const allClients = Object.keys(clients).sort();
-
-    if (allClients.length === 0) {
-        checklist.innerHTML = '<div style="color:#888;padding:8px;">No clients available</div>';
-        return;
-    }
-
-    checklist.innerHTML = allClients.map(name => {
-        const checked = selectedClients.includes(name) ? 'checked' : '';
-        return `
-            <label>
-                <input type="checkbox" value="${name}" ${checked}>
-                ${name}
-            </label>
-        `;
-    }).join('');
-}
-
-function toggleClientSelection() {
-    const roleSelect = document.getElementById('newRole') || document.getElementById('editRole');
-    const clientGroup = document.getElementById('clientSelectionGroup');
-
-    if (roleSelect && clientGroup) {
-        clientGroup.style.display = roleSelect.value === 'admin' ? 'none' : 'block';
-    }
-}
-
-function saveNewUser() {
-    const username = document.getElementById('newUsername').value.trim();
+async function saveNewUser() {
+    const email = document.getElementById('newEmail').value.trim();
     const password = document.getElementById('newPassword').value;
+    const fullName = document.getElementById('newFullName').value.trim();
     const role = document.getElementById('newRole').value;
 
-    if (!username || !password) {
-        alert('Username and password are required');
+    if (!email || !password || !fullName) {
+        alert('Email, password, and full name are required');
         return;
     }
 
-    if (users[username]) {
-        alert('User already exists');
-        return;
+    try {
+        const result = await signUp(email, password, fullName, role);
+        if (result.success) {
+            closeUserForm();
+            renderUsersTable();
+            alert('User created successfully');
+        } else {
+            alert('Error creating user: ' + result.error);
+        }
+    } catch (err) {
+        alert('Error: ' + err.message);
     }
-
-    const selectedClients = role === 'admin' ? [] : Array.from(document.querySelectorAll('#clientChecklist input:checked')).map(cb => cb.value);
-
-    users[username] = {
-        password: password,
-        role: role,
-        clients: selectedClients
-    };
-
-    localStorage.setItem('ecomghosts_users', JSON.stringify(users));
-    closeUserForm();
-    renderUsersTable();
 }
 
-function saveEditUser(username) {
+async function saveEditUser(userId, email) {
     const password = document.getElementById('editPassword').value;
     const role = document.getElementById('editRole').value;
 
-    if (password) {
-        users[username].password = password;
+    try {
+        const updates = { role: role };
+        const result = await updateUser(userId, updates);
+
+        if (result.success) {
+            closeUserForm();
+            renderUsersTable();
+            alert('User updated successfully');
+        } else {
+            alert('Error updating user: ' + result.error);
+        }
+    } catch (err) {
+        alert('Error: ' + err.message);
     }
-
-    users[username].role = role;
-
-    if (role === 'admin') {
-        users[username].clients = [];
-    } else {
-        users[username].clients = Array.from(document.querySelectorAll('#clientChecklist input:checked')).map(cb => cb.value);
-    }
-
-    localStorage.setItem('ecomghosts_users', JSON.stringify(users));
-    closeUserForm();
-    renderUsersTable();
 }
 
-function deleteUser(username) {
-    if (confirm(`Delete user "${username}"?`)) {
-        delete users[username];
-        localStorage.setItem('ecomghosts_users', JSON.stringify(users));
-        renderUsersTable();
+async function deleteUserAccount(userId, email) {
+    if (confirm(`Delete user "${email}"?`)) {
+        try {
+            const result = await deleteUser(userId);
+            if (result.success) {
+                renderUsersTable();
+                alert('User deleted successfully');
+            } else {
+                alert('Error deleting user: ' + result.error);
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        }
     }
 }
 
@@ -1525,9 +1595,21 @@ function closeUserForm() {
 }
 
 // Init on load - wait for DOM to be ready
-function startApp() {
+async function startApp() {
     setupAuth();
-    init();
+
+    // Check if user is already logged in
+    const user = await getCurrentUser();
+    if (user) {
+        currentUser = user;
+        currentUserData = user;
+        const loginScreenEl = document.getElementById('loginScreen');
+        if (loginScreenEl) loginScreenEl.classList.add('hidden');
+        await init();
+    } else {
+        const loginScreenEl = document.getElementById('loginScreen');
+        if (loginScreenEl) loginScreenEl.classList.remove('hidden');
+    }
 }
 
 if (document.readyState === 'loading') {

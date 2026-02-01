@@ -6,6 +6,7 @@
     <title>GhostAnalytics by EcomGhosts</title>
     <meta name="description" content="LinkedIn analytics dashboard for EcomGhosts clients. Track engagement, impressions, followers, and post performance.">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👻</text></svg>">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
@@ -25,7 +26,7 @@
             <h1>GhostAnalytics</h1>
             <p>Sign in to continue</p>
             <form id="loginForm">
-                <input type="text" id="loginUsername" placeholder="Username" required autocomplete="username">
+                <input type="email" id="loginEmail" placeholder="Email" required autocomplete="email">
                 <input type="password" id="loginPassword" placeholder="Password" required autocomplete="current-password">
                 <div id="loginError" class="login-error hidden"></div>
                 <button type="submit" class="btn">Sign In</button>
@@ -147,6 +148,7 @@
             </div>
         </div>
     </div>
+    <script src="supabase-config.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
